@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ours Sweeper</title>
+  <style>
+    /* ============================================================
+       RESET & BASE
+       ============================================================ */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      overflow: hidden;
+      height: 100vh;
+      user-select: none;
+    }
+
+    /* ============================================================
+       SCREENS
+       ============================================================ */
+    .screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      width: 100vw;
+      position: absolute;
+      top: 0; left: 0;
+    }
+    .screen.active { display: flex; }
+
+    /* ============================================================
+       MATCHING SCREEN
+       ============================================================ */
+    #matchingScreen {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    }
+    .game-title {
+      font-size: 3.5rem;
+      font-weight: 900;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #e94560, #f5a623, #4ecdc4, #6c5ce7);
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: gradientShift 4s ease infinite;
+    }
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+    .game-subtitle {
+      font-size: 1rem;
+      color: #8899aa;
+      margin-bottom: 2.5rem;
+      letter-spacing: 0.2em;
+    }
+
+    .match-box {
+      background: rgba(255,255,255,0.06);
+      border-radius: 20px;
+      padding: 2.5rem;
+      width: 400px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .match-box h2 {
+      font-size: 1.2rem;
+      margin-bottom: 1.5rem;
+      text-align: center;
+      color: #ccc;
+    }
+    .input-group {
+      margin-bottom: 1rem;
+    }
+    .input-group label {
+      display: block;
+      font-size: 0.85rem;
+      color: #999;
+      margin-bottom: 0.4rem;
+    }
+    .input-group input {
+      width: 100%;
+      padding: 0.8rem 1rem;
+      border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.05);
+      color: #fff;
+      font-size: 1.1rem;
+      outline: none;
+      transition: border-color 0.3s;
+    }
+    .input-group input:focus {
+      border-color: #e94560;
+    }
+    .input-group input::placeholder {
+      color: #555;
+    }
+    .btn-row {
+      display: flex;
+      gap: 0.8rem;
+      margin-top: 1.5rem;
+    }
+    .btn {
+      flex: 1;
+      padding: 0.9rem;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn:active { transform: translateY(0); }
+    .btn-create {
+      background: linear-gradient(135deg, #e94560, #c23152);
+      color: #fff;
+    }
+    .btn-join {
+      background: linear-gradient(135deg, #4ecdc4, #2eb5ad);
+      color: #fff;
+    }
+
+    .waiting-msg {
+      display: none;
+      text-align: center;
+      margin-top: 1.5rem;
+      color: #f5a623;
+      font-size: 0.95rem;
+    }
+    .waiting-msg.show { display: block; }
+    .waiting-dots::after {
+      content: '';
+      animation: dots 1.5s steps(4, end) infinite;
+    }
+    @keyframes dots {
+      0% { content: ''; }
+      25% { content: '.'; }
+      50% { content: '..'; }
+      75% { content: '...'; }
+    }
+    .error-msg {
+      color: #e94560;
+      text-align: center;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      min-height: 1.2em;
+    }
+
+    /* ============================================================
+       CHARACTER SELECT SCREEN
+       ============================================================ */
+    #colorSelectScreen {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    }
+    .select-title {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+    }
+    .select-subtitle {
+      color: #8899aa;
+      margin-bottom: 2rem;
+    }
+    .character-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.2rem;
+      margin-bottom: 2rem;
+    }
+    .char-card {
+      width: 160px;
+      height: 200px;
+      border-radius: 16px;
+      border: 3px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04);
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .char-card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(255,255,255,0.3);
+    }
+    .char-card.selected {
+      border-color: #f5a623;
+      background: rgba(245,166,35,0.1);
+      box-shadow: 0 0 20px rgba(245,166,35,0.3);
+    }
+    .char-card.taken {
+      opacity: 0.3;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .char-card .char-svg {
+      width: 90px;
+      height: 90px;
+      margin-bottom: 0.6rem;
+      transition: transform 0.3s;
+    }
+    .char-card:hover .char-svg {
+      transform: translateY(-5px);
+      animation: charBounce 0.5s ease infinite alternate;
+    }
+    @keyframes charBounce {
+      from { transform: translateY(-3px); }
+      to { transform: translateY(-8px); }
+    }
+    .char-card .char-name {
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    .char-card .char-color-label {
+      font-size: 0.75rem;
+      color: #999;
+      margin-top: 0.2rem;
+    }
+    .char-card .taken-label {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.7);
+      padding: 0.3rem 0.8rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #e94560;
+      font-weight: 700;
+    }
+    .char-card.taken .taken-label { display: block; }
+
+    .btn-confirm {
+      background: linear-gradient(135deg, #f5a623, #e09000);
+      color: #fff;
+      padding: 1rem 3rem;
+      border: none;
+      border-radius: 14px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    .btn-confirm.enabled {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .btn-confirm.enabled:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(245,166,35,0.4);
+    }
+    .waiting-opponent {
+      display: none;
+      margin-top: 1rem;
+      color: #4ecdc4;
+      font-size: 0.95rem;
+    }
+
+    /* ============================================================
+       GAME SCREEN
+       ============================================================ */
+    #gameScreen {
+      background: #1a1a2e;
+      flex-direction: row;
+      justify-content: center;
+      align-items: center;
+      gap: 0;
+    }
+
+    .player-panel {
+      width: 200px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      gap: 0.8rem;
+    }
+    .player-panel .panel-char {
+      width: 80px;
+      height: 80px;
+    }
+    .player-panel .panel-name {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+    .player-panel .panel-score {
+      font-size: 2rem;
+      font-weight: 900;
+    }
+    .player-panel .panel-bombs {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.9rem;
+      color: #e94560;
+    }
+    .player-panel .panel-bombs .bomb-icon {
+      font-size: 1.2rem;
+    }
+    .player-panel .penalty-badge {
+      display: none;
+      background: #e94560;
+      color: #fff;
+      padding: 0.3rem 0.8rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      animation: penaltyPulse 0.5s ease infinite alternate;
+    }
+    @keyframes penaltyPulse {
+      from { opacity: 0.7; }
+      to { opacity: 1; }
+    }
+
+    .board-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Countdown overlay */
+    .countdown-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .countdown-overlay.active { display: flex; }
+    .countdown-number {
+      font-size: 8rem;
+      font-weight: 900;
+      color: #fff;
+      animation: countPop 1s ease;
+    }
+    @keyframes countPop {
+      0% { transform: scale(2); opacity: 0; }
+      50% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.8; }
+    }
+    .countdown-label {
+      font-size: 1.2rem;
+      color: #8899aa;
+      margin-top: 1rem;
+    }
+
+    /* Mine board */
+    #mineBoard {
+      border-collapse: collapse;
+      border: 3px solid #555;
+    }
+    #mineBoard td {
+      width: 22px;
+      height: 22px;
+      text-align: center;
+      vertical-align: middle;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid #444;
+      background: #999;
+      cursor: pointer;
+      position: relative;
+      line-height: 22px;
+    }
+    #mineBoard td.revealed {
+      background: #d4d4d4;
+      cursor: default;
+      border: 1px solid #bbb;
+    }
+    #mineBoard td.bomb-revealed {
+      background: #ff4444;
+      cursor: default;
+    }
+    #mineBoard td.auto-opened {
+      background: #d4d4d4;
+      cursor: default;
+      border: 1px solid #bbb;
+    }
+    #mineBoard td.flagged::after {
+      content: '\1F6A9';
+      font-size: 13px;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    /* Number colors - minesweeper classic */
+    .num-1 { color: #0000ff !important; }
+    .num-2 { color: #008000 !important; }
+    .num-3 { color: #ff0000 !important; }
+    .num-4 { color: #000080 !important; }
+    .num-5 { color: #800000 !important; }
+    .num-6 { color: #008080 !important; }
+    .num-7 { color: #000000 !important; }
+    .num-8 { color: #808080 !important; }
+
+    /* Player color tints */
+    .tint-red { background-color: rgba(255, 115, 118, 0.3) !important; }
+    .tint-blue { background-color: rgba(100, 229, 255, 0.3) !important; }
+    .tint-green { background-color: rgba(66, 255, 71, 0.3) !important; }
+    .tint-yellow { background-color: rgba(255, 173, 79, 0.3) !important; }
+    .tint-pink { background-color: rgba(255, 147, 231, 0.3) !important; }
+    .tint-purple { background-color: rgba(212, 129, 255, 0.3) !important; }
+
+    /* Explosion effect */
+    .explosion {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ff6b35 0%, #ff4444 40%, transparent 70%);
+      animation: explode 0.6s ease-out forwards;
+      pointer-events: none;
+      z-index: 50;
+    }
+    @keyframes explode {
+      0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+      50% { transform: translate(-50%, -50%) scale(3); opacity: 0.8; }
+      100% { transform: translate(-50%, -50%) scale(5); opacity: 0; }
+    }
+
+    /* Penalty overlay on board */
+    .penalty-overlay {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(233, 69, 96, 0.15);
+      z-index: 30;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+    .penalty-overlay.active {
+      display: flex;
+      pointer-events: auto;
+    }
+    .penalty-overlay .penalty-text {
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: #e94560;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    }
+    .penalty-overlay .penalty-timer {
+      font-size: 3rem;
+      font-weight: 900;
+      color: #fff;
+    }
+
+    /* ============================================================
+       RESULT SCREEN
+       ============================================================ */
+    #resultScreen {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    }
+    .result-title {
+      font-size: 3rem;
+      font-weight: 900;
+      margin-bottom: 2rem;
+    }
+    .result-title.win { color: #f5a623; }
+    .result-title.lose { color: #8899aa; }
+    .result-title.draw { color: #4ecdc4; }
+
+    .result-cards {
+      display: flex;
+      gap: 2rem;
+      margin-bottom: 2.5rem;
+    }
+    .result-card {
+      background: rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding: 2rem;
+      width: 240px;
+      text-align: center;
+      border: 2px solid rgba(255,255,255,0.1);
+    }
+    .result-card.winner {
+      border-color: #f5a623;
+      box-shadow: 0 0 30px rgba(245,166,35,0.2);
+    }
+    .result-card .rc-char {
+      width: 70px;
+      height: 70px;
+      margin: 0 auto 0.8rem;
+    }
+    .result-card .rc-name {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    .result-card .rc-stat {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      font-size: 0.9rem;
+    }
+    .result-card .rc-stat:last-child { border-bottom: none; }
+    .result-card .rc-total {
+      margin-top: 0.8rem;
+      font-size: 1.8rem;
+      font-weight: 900;
+    }
+
+    .result-buttons {
+      display: flex;
+      gap: 1rem;
+    }
+    .btn-restart {
+      background: linear-gradient(135deg, #f5a623, #e09000);
+      color: #fff;
+    }
+    .btn-exit {
+      background: linear-gradient(135deg, #666, #444);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ============================================================
+     SCREEN 1: MATCHING
+     ============================================================ -->
+<div id="matchingScreen" class="screen active">
+  <div class="game-title">Ours Sweeper</div>
+  <div class="game-subtitle">COMPETITIVE MINESWEEPER</div>
+  <div class="match-box">
+    <h2>Let's Play!</h2>
+    <div class="input-group">
+      <label>Player Name</label>
+      <input type="text" id="playerNameInput" placeholder="Your name" maxlength="12">
+    </div>
+    <div class="input-group">
+      <label>Room Code (3 digits)</label>
+      <input type="text" id="roomCodeInput" placeholder="000 - 999" maxlength="3" pattern="[0-9]*">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-create" id="btnCreate">Create Room</button>
+      <button class="btn btn-join" id="btnJoin">Join Room</button>
+    </div>
+    <div class="waiting-msg" id="waitingMsg">
+      Waiting for opponent<span class="waiting-dots"></span>
+      <br><small id="roomCodeDisplay"></small>
+    </div>
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN 2: CHARACTER SELECT
+     ============================================================ -->
+<div id="colorSelectScreen" class="screen">
+  <div class="select-title">Choose Your Character</div>
+  <div class="select-subtitle">Left click to select / Right click to deselect</div>
+  <div class="character-grid" id="characterGrid">
+    <!-- Generated by JS -->
+  </div>
+  <button class="btn btn-confirm" id="btnConfirm">Ready!</button>
+  <div class="waiting-opponent" id="waitingOpponent">Waiting for opponent<span class="waiting-dots"></span></div>
+</div>
+
+<!-- ============================================================
+     SCREEN 3: GAME
+     ============================================================ -->
+<div id="gameScreen" class="screen">
+  <div class="player-panel" id="panelLeft">
+    <div class="panel-char" id="leftChar"></div>
+    <div class="panel-name" id="leftName">Player 1</div>
+    <div class="panel-score" id="leftScore">0</div>
+    <div class="panel-bombs"><span class="bomb-icon">💣</span> <span id="leftBombs">0</span></div>
+    <div class="penalty-badge" id="leftPenalty">PENALTY</div>
+  </div>
+
+  <div class="board-container">
+    <div style="position:relative;">
+      <table id="mineBoard"></table>
+      <div class="penalty-overlay" id="myPenaltyOverlay">
+        <div class="penalty-text">💥 BOOM!</div>
+        <div class="penalty-timer" id="penaltyCountdown">5</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="player-panel" id="panelRight">
+    <div class="panel-char" id="rightChar"></div>
+    <div class="panel-name" id="rightName">Player 2</div>
+    <div class="panel-score" id="rightScore">0</div>
+    <div class="panel-bombs"><span class="bomb-icon">💣</span> <span id="rightBombs">0</span></div>
+    <div class="penalty-badge" id="rightPenalty">PENALTY</div>
+  </div>
+</div>
+
+<!-- Countdown overlay -->
+<div class="countdown-overlay" id="countdownOverlay">
+  <div class="countdown-number" id="countdownNumber">5</div>
+  <div class="countdown-label" id="countdownLabel">Get Ready...</div>
+</div>
+
+<!-- ============================================================
+     SCREEN 4: RESULTS
+     ============================================================ -->
+<div id="resultScreen" class="screen">
+  <div class="result-title" id="resultTitle">Victory!</div>
+  <div class="result-cards" id="resultCards"></div>
+  <div class="result-buttons">
+    <button class="btn btn-restart" id="btnRestart">Play Again</button>
+    <button class="btn btn-exit" id="btnExit">Exit</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// ============================================================
+// CHARACTER SVG DATA
+// ============================================================
+const CHARACTERS = {
+  red: {
+    name: 'Parrot',
+    label: 'Red',
+    tintClass: 'tint-red',
+    primary: '#FF7376',
+    svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <!-- Body -->
+      <ellipse cx="50" cy="58" rx="25" ry="28" fill="#e94560"/>
+      <!-- Belly -->
+      <ellipse cx="50" cy="63" rx="16" ry="18" fill="#f7a0a0"/>
+      <!-- Head -->
+      <circle cx="50" cy="30" r="20" fill="#e94560"/>
+      <!-- Eye whites -->
+      <circle cx="43" cy="26" r="7" fill="#fff"/>
+      <circle cx="57" cy="26" r="7" fill="#fff"/>
+      <!-- Pupils -->
+      <circle cx="44" cy="27" r="4" fill="#111"/>
+      <circle cx="58" cy="27" r="4" fill="#111"/>
+      <!-- Eye shines -->
+      <circle cx="45.5" cy="25.5" r="1.5" fill="#fff"/>
+      <circle cx="59.5" cy="25.5" r="1.5" fill="#fff"/>
+      <!-- Beak -->
+      <path d="M46 34 Q50 42 54 34 Q50 37 46 34Z" fill="#f5a623"/>
+      <!-- Wings -->
+      <ellipse cx="27" cy="55" rx="8" ry="15" fill="#c23152" transform="rotate(-10 27 55)"/>
+      <ellipse cx="73" cy="55" rx="8" ry="15" fill="#c23152" transform="rotate(10 73 55)"/>
+      <!-- Tail feathers -->
+      <path d="M40 84 Q35 98 30 95" stroke="#f5a623" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M50 86 Q50 100 50 98" stroke="#e94560" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M60 84 Q65 98 70 95" stroke="#4ecdc4" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <!-- Feet -->
+      <path d="M40 85 L37 94 M40 85 L40 94 M40 85 L43 94" stroke="#f5a623" stroke-width="2" stroke-linecap="round"/>
+      <path d="M60 85 L57 94 M60 85 L60 94 M60 85 L63 94" stroke="#f5a623" stroke-width="2" stroke-linecap="round"/>
+      <!-- Crest -->
+      <path d="M40 14 Q42 4 50 10" stroke="#e94560" stroke-width="3" fill="#ff6b6b" stroke-linecap="round"/>
+      <path d="M50 10 Q55 2 56 12" stroke="#e94560" stroke-width="3" fill="#ff6b6b" stroke-linecap="round"/>
+    </svg>`
+  },
+  blue: {
+    name: 'Penguin',
+    label: 'Blue',
+    tintClass: 'tint-blue',
+    primary: '#64E5FF',
+    svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <!-- Body -->
+      <ellipse cx="50" cy="58" rx="26" ry="30" fill="#2c3e50"/>
+      <!-- Belly -->
+      <ellipse cx="50" cy="62" rx="17" ry="22" fill="#ecf0f1"/>
+      <!-- Head -->
+      <circle cx="50" cy="28" r="20" fill="#2c3e50"/>
+      <!-- Eye whites -->
+      <circle cx="42" cy="25" r="7.5" fill="#fff"/>
+      <circle cx="58" cy="25" r="7.5" fill="#fff"/>
+      <!-- Pupils -->
+      <circle cx="43" cy="26" r="4.5" fill="#111"/>
+      <circle cx="59" cy="26" r="4.5" fill="#111"/>
+      <!-- Eye shines -->
+      <circle cx="44.5" cy="24.5" r="1.5" fill="#fff"/>
+      <circle cx="60.5" cy="24.5" r="1.5" fill="#fff"/>
+      <!-- Beak -->
+      <path d="M46 33 L50 39 L54 33Z" fill="#f39c12"/>
+      <!-- Cheeks -->
+      <circle cx="37" cy="32" r="3" fill="#4ecdc4" opacity="0.5"/>
+      <circle cx="63" cy="32" r="3" fill="#4ecdc4" opacity="0.5"/>
+      <!-- Wings -->
+      <ellipse cx="24" cy="58" rx="7" ry="18" fill="#34495e" transform="rotate(-5 24 58)"/>
+      <ellipse cx="76" cy="58" rx="7" ry="18" fill="#34495e" transform="rotate(5 76 58)"/>
+      <!-- Feet -->
+      <ellipse cx="40" cy="90" rx="9" ry="4" fill="#f39c12"/>
+      <ellipse cx="60" cy="90" rx="9" ry="4" fill="#f39c12"/>
+      <!-- Bow tie -->
+      <path d="M44 44 L50 47 L56 44 L50 50Z" fill="#4ecdc4"/>
+    </svg>`
+  },
+  green: {
+    name: 'Turtle',
+    label: 'Green',
+    tintClass: 'tint-green',
+    primary: '#42FF47',
+    svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <!-- Shell -->
+      <ellipse cx="50" cy="55" rx="30" ry="25" fill="#27ae60"/>
+      <!-- Shell pattern -->
+      <ellipse cx="50" cy="50" rx="12" ry="10" fill="#2ecc71" stroke="#1e8449" stroke-width="1.5"/>
+      <path d="M38 50 Q32 42 38 38" stroke="#1e8449" stroke-width="1.5" fill="none"/>
+      <path d="M62 50 Q68 42 62 38" stroke="#1e8449" stroke-width="1.5" fill="none"/>
+      <path d="M42 62 Q38 68 42 72" stroke="#1e8449" stroke-width="1.5" fill="none"/>
+      <path d="M58 62 Q62 68 58 72" stroke="#1e8449" stroke-width="1.5" fill="none"/>
+      <!-- Head -->
+      <circle cx="50" cy="24" r="15" fill="#82e0aa"/>
+      <!-- Eye whites -->
+      <circle cx="44" cy="21" r="5.5" fill="#fff"/>
+      <circle cx="56" cy="21" r="5.5" fill="#fff"/>
+      <!-- Pupils -->
+      <circle cx="45" cy="22" r="3" fill="#111"/>
+      <circle cx="57" cy="22" r="3" fill="#111"/>
+      <!-- Eye shines -->
+      <circle cx="46" cy="20.5" r="1.2" fill="#fff"/>
+      <circle cx="58" cy="20.5" r="1.2" fill="#fff"/>
+      <!-- Smile -->
+      <path d="M44 28 Q50 33 56 28" stroke="#1e8449" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <!-- Cheeks -->
+      <circle cx="39" cy="27" r="3" fill="#f9c4d2" opacity="0.5"/>
+      <circle cx="61" cy="27" r="3" fill="#f9c4d2" opacity="0.5"/>
+      <!-- Legs -->
+      <ellipse cx="25" cy="62" rx="8" ry="6" fill="#82e0aa" transform="rotate(-20 25 62)"/>
+      <ellipse cx="75" cy="62" rx="8" ry="6" fill="#82e0aa" transform="rotate(20 75 62)"/>
+      <ellipse cx="30" cy="78" rx="7" ry="5" fill="#82e0aa" transform="rotate(-10 30 78)"/>
+      <ellipse cx="70" cy="78" rx="7" ry="5" fill="#82e0aa" transform="rotate(10 70 78)"/>
+      <!-- Tail -->
+      <path d="M50 80 Q50 88 53 85" fill="#82e0aa"/>
+    </svg>`
+  },
+  yellow: {
+    name: 'Fox',
+    label: 'Orange',
+    tintClass: 'tint-yellow',
+    primary: '#FFAD4F',
+    svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <!-- Body -->
+      <ellipse cx="50" cy="62" rx="22" ry="25" fill="#f39c12"/>
+      <!-- Belly -->
+      <ellipse cx="50" cy="67" rx="14" ry="17" fill="#fdebd0"/>
+      <!-- Tail -->
+      <path d="M72 68 Q90 50 85 38 Q82 45 75 55" fill="#f39c12"/>
+      <path d="M85 38 Q83 44 78 48" fill="#fdebd0"/>
+      <!-- Head -->
+      <circle cx="50" cy="32" r="18" fill="#f39c12"/>
+      <!-- Ears -->
+      <path d="M34 22 L30 4 L42 18Z" fill="#f39c12"/>
+      <path d="M36 18 L32 8 L41 18Z" fill="#fdebd0"/>
+      <path d="M66 22 L70 4 L58 18Z" fill="#f39c12"/>
+      <path d="M64 18 L68 8 L59 18Z" fill="#fdebd0"/>
+      <!-- Eye whites -->
+      <circle cx="43" cy="29" r="6" fill="#fff"/>
+      <circle cx="57" cy="29" r="6" fill="#fff"/>
+      <!-- Pupils (sly look) -->
+      <ellipse cx="44" cy="30" rx="3.5" ry="4" fill="#111"/>
+      <ellipse cx="58" cy="30" rx="3.5" ry="4" fill="#111"/>
+      <!-- Eye shines -->
+      <circle cx="45.5" cy="28.5" r="1.5" fill="#fff"/>
+      <circle cx="59.5" cy="28.5" r="1.5" fill="#fff"/>
+      <!-- Nose -->
+      <ellipse cx="50" cy="37" rx="3" ry="2" fill="#111"/>
+      <!-- Mouth -->
+      <path d="M47 39 Q50 42 53 39" stroke="#111" stroke-width="1.2" fill="none"/>
+      <!-- Whiskers -->
+      <line x1="30" y1="35" x2="42" y2="37" stroke="#c68c10" stroke-width="1"/>
+      <line x1="30" y1="39" x2="42" y2="39" stroke="#c68c10" stroke-width="1"/>
+      <line x1="70" y1="35" x2="58" y2="37" stroke="#c68c10" stroke-width="1"/>
+      <line x1="70" y1="39" x2="58" y2="39" stroke="#c68c10" stroke-width="1"/>
+      <!-- Feet -->
+      <ellipse cx="40" cy="88" rx="7" ry="4" fill="#2c3e50"/>
+      <ellipse cx="60" cy="88" rx="7" ry="4" fill="#2c3e50"/>
+    </svg>`
+  },
+  pink: {
+    name: 'Pig',
+    label: 'Pink',
+    tintClass: 'tint-pink',
+    primary: '#FF93E7',
+    svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <!-- Body -->
+      <ellipse cx="50" cy="60" rx="28" ry="27" fill="#fd79a8"/>
+      <!-- Belly -->
+      <ellipse cx="50" cy="64" rx="19" ry="19" fill="#fcc4d9"/>
+      <!-- Head -->
+      <circle cx="50" cy="30" r="20" fill="#fd79a8"/>
+      <!-- Ears -->
+      <ellipse cx="34" cy="14" rx="8" ry="10" fill="#fd79a8" transform="rotate(-15 34 14)"/>
+      <ellipse cx="35" cy="15" rx="5" ry="7" fill="#e55b8c" transform="rotate(-15 35 15)"/>
+      <ellipse cx="66" cy="14" rx="8" ry="10" fill="#fd79a8" transform="rotate(15 66 14)"/>
+      <ellipse cx="65" cy="15" rx="5" ry="7" fill="#e55b8c" transform="rotate(15 65 15)"/>
+      <!-- Eye whites -->
+      <circle cx="42" cy="27" r="6.5" fill="#fff"/>
+      <circle cx="58" cy="27" r="6.5" fill="#fff"/>
+      <!-- Pupils -->
+      <circle cx="43" cy="28" r="3.5" fill="#111"/>
+      <circle cx="59" cy="28" r="3.5" fill="#111"/>
+      <!-- Eye shines -->
+      <circle cx="44.5" cy="26.5" r="1.5" fill="#fff"/>
+      <circle cx="60.5" cy="26.5" r="1.5" fill="#fff"/>
+      <!-- Snout -->
+      <ellipse cx="50" cy="36" rx="10" ry="7" fill="#e55b8c"/>
+      <!-- Nostrils -->
+      <ellipse cx="46" cy="36" rx="2.5" ry="2" fill="#c0447a"/>
+      <ellipse cx="54" cy="36" rx="2.5" ry="2" fill="#c0447a"/>
+      <!-- Smile -->
+      <path d="M44 41 Q50 45 56 41" stroke="#c0447a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <!-- Cheeks -->
+      <circle cx="34" cy="33" r="4" fill="#ff9ec0" opacity="0.5"/>
+      <circle cx="66" cy="33" r="4" fill="#ff9ec0" opacity="0.5"/>
+      <!-- Feet -->
+      <ellipse cx="38" cy="88" rx="8" ry="5" fill="#e55b8c"/>
+      <ellipse cx="62" cy="88" rx="8" ry="5" fill="#e55b8c"/>
+      <!-- Tail (curly) -->
+      <path d="M75 55 Q82 50 80 58 Q78 65 85 60" stroke="#fd79a8" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>`
+  },
+  purple: {
+    name: 'Snake',
+    label: 'Purple',
+    tintClass: 'tint-purple',
+    primary: '#D481FF',
+    svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <!-- Coiled body -->
+      <path d="M55 85 Q20 85 20 65 Q20 50 35 50 Q50 50 50 60 Q50 70 40 70 Q30 70 30 62"
+            stroke="#a25ddc" stroke-width="12" fill="none" stroke-linecap="round"/>
+      <!-- Body stripe -->
+      <path d="M55 85 Q20 85 20 65 Q20 50 35 50 Q50 50 50 60 Q50 70 40 70 Q30 70 30 62"
+            stroke="#c39bec" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <!-- Neck going up -->
+      <path d="M55 85 Q70 82 70 65 Q70 45 60 35" stroke="#a25ddc" stroke-width="12" fill="none" stroke-linecap="round"/>
+      <path d="M55 85 Q70 82 70 65 Q70 45 60 35" stroke="#c39bec" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <!-- Head -->
+      <ellipse cx="55" cy="28" rx="16" ry="14" fill="#a25ddc"/>
+      <!-- Belly pattern on head -->
+      <ellipse cx="55" cy="32" rx="10" ry="7" fill="#c39bec"/>
+      <!-- Eye whites -->
+      <circle cx="48" cy="24" r="6" fill="#fff"/>
+      <circle cx="62" cy="24" r="6" fill="#fff"/>
+      <!-- Pupils (slit) -->
+      <ellipse cx="48" cy="24" rx="2" ry="4.5" fill="#111"/>
+      <ellipse cx="62" cy="24" rx="2" ry="4.5" fill="#111"/>
+      <!-- Eye shines -->
+      <circle cx="49.5" cy="22.5" r="1.5" fill="#fff"/>
+      <circle cx="63.5" cy="22.5" r="1.5" fill="#fff"/>
+      <!-- Tongue -->
+      <path d="M55 36 L55 43 M55 43 L52 46 M55 43 L58 46" stroke="#e94560" stroke-width="2" stroke-linecap="round"/>
+      <!-- Small crown/spots -->
+      <circle cx="46" cy="16" r="2" fill="#d4a5f5"/>
+      <circle cx="55" cy="14" r="2" fill="#d4a5f5"/>
+      <circle cx="64" cy="16" r="2" fill="#d4a5f5"/>
+      <!-- Body spots -->
+      <circle cx="25" cy="65" r="2" fill="#d4a5f5"/>
+      <circle cx="42" cy="55" r="2" fill="#d4a5f5"/>
+      <circle cx="65" cy="60" r="2" fill="#d4a5f5"/>
+    </svg>`
+  }
+};
+
+const COLOR_KEYS = ['red', 'blue', 'green', 'yellow', 'pink', 'purple'];
+
+// ============================================================
+// GLOBALS
+// ============================================================
+const socket = io();
+let myPlayerId = null;
+let myColor = null;
+let gameState = 'matching';
+let selectedColor = null;
+let boardData = []; // local tracking of revealed cells
+let penaltyTimer = null;
+
+// ============================================================
+// SCREEN MANAGEMENT
+// ============================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ============================================================
+// MATCHING SCREEN
+// ============================================================
+const btnCreate = document.getElementById('btnCreate');
+const btnJoin = document.getElementById('btnJoin');
+const playerNameInput = document.getElementById('playerNameInput');
+const roomCodeInput = document.getElementById('roomCodeInput');
+const waitingMsg = document.getElementById('waitingMsg');
+const roomCodeDisplay = document.getElementById('roomCodeDisplay');
+const errorMsg = document.getElementById('errorMsg');
+
+roomCodeInput.addEventListener('input', (e) => {
+  e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 3);
+});
+
+btnCreate.addEventListener('click', () => {
+  const name = playerNameInput.value.trim() || 'Player';
+  const code = roomCodeInput.value.trim();
+  if (code.length !== 3) {
+    errorMsg.textContent = 'Please enter a 3-digit room code.';
+    return;
+  }
+  errorMsg.textContent = '';
+  socket.emit('createRoom', { code, playerName: name });
+});
+
+btnJoin.addEventListener('click', () => {
+  const name = playerNameInput.value.trim() || 'Player';
+  const code = roomCodeInput.value.trim();
+  if (code.length !== 3) {
+    errorMsg.textContent = 'Please enter a 3-digit room code.';
+    return;
+  }
+  errorMsg.textContent = '';
+  socket.emit('joinRoom', { code, playerName: name });
+});
+
+socket.on('roomCreated', ({ code, playerId }) => {
+  myPlayerId = playerId;
+  waitingMsg.classList.add('show');
+  roomCodeDisplay.textContent = `Room Code: ${code}`;
+  btnCreate.disabled = true;
+  btnJoin.disabled = true;
+});
+
+socket.on('roomJoined', ({ code, playerId }) => {
+  myPlayerId = playerId;
+});
+
+socket.on('error', ({ message }) => {
+  errorMsg.textContent = message;
+});
+
+// ============================================================
+// CHARACTER SELECT SCREEN
+// ============================================================
+const characterGrid = document.getElementById('characterGrid');
+const btnConfirm = document.getElementById('btnConfirm');
+const waitingOpponent = document.getElementById('waitingOpponent');
+let confirmed = false;
+
+socket.on('goToColorSelect', ({ players }) => {
+  showScreen('colorSelectScreen');
+  selectedColor = null;
+  confirmed = false;
+  btnConfirm.classList.remove('enabled');
+  btnConfirm.style.display = '';
+  waitingOpponent.style.display = 'none';
+  buildCharacterGrid();
+});
+
+function buildCharacterGrid() {
+  characterGrid.innerHTML = '';
+  for (const key of COLOR_KEYS) {
+    const ch = CHARACTERS[key];
+    const card = document.createElement('div');
+    card.className = 'char-card';
+    card.dataset.color = key;
+    card.innerHTML = `
+      <div class="char-svg">${ch.svg}</div>
+      <div class="char-name">${ch.name}</div>
+      <div class="char-color-label" style="color:${ch.primary}">${ch.label}</div>
+      <div class="taken-label">TAKEN</div>
+    `;
+    card.addEventListener('click', () => {
+      if (confirmed) return;
+      if (card.classList.contains('taken')) return;
+      // Deselect previous
+      if (selectedColor) {
+        socket.emit('deselectColor');
+      }
+      selectedColor = key;
+      socket.emit('selectColor', { color: key });
+    });
+    card.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (confirmed) return;
+      if (selectedColor === key) {
+        selectedColor = null;
+        socket.emit('deselectColor');
+      }
+    });
+    characterGrid.appendChild(card);
+  }
+}
+
+socket.on('colorUpdate', ({ playerId: pid, color, players }) => {
+  // Update card states
+  document.querySelectorAll('.char-card').forEach(card => {
+    const cardColor = card.dataset.color;
+    card.classList.remove('selected', 'taken');
+
+    const takenByOther = players.find(p => p.id !== myPlayerId && p.color === cardColor);
+    const selectedByMe = players.find(p => p.id === myPlayerId && p.color === cardColor);
+
+    if (takenByOther) {
+      card.classList.add('taken');
+    } else if (selectedByMe) {
+      card.classList.add('selected');
+      selectedColor = cardColor;
+    }
+  });
+
+  // Enable confirm button if I have a color
+  const me = players.find(p => p.id === myPlayerId);
+  if (me && me.color) {
+    btnConfirm.classList.add('enabled');
+  } else {
+    btnConfirm.classList.remove('enabled');
+  }
+});
+
+socket.on('colorTaken', ({ color }) => {
+  selectedColor = null;
+});
+
+btnConfirm.addEventListener('click', () => {
+  if (!selectedColor || confirmed) return;
+  confirmed = true;
+  socket.emit('confirmColor');
+  btnConfirm.style.display = 'none';
+  waitingOpponent.style.display = 'block';
+});
+
+socket.on('playerReady', ({ playerId: pid }) => {
+  // Visual feedback
+});
+
+// ============================================================
+// COUNTDOWN & GAME START
+// ============================================================
+let countdownInterval = null;
+let playersInfo = [];
+
+socket.on('countdownStart', ({ duration, players }) => {
+  playersInfo = players;
+  showScreen('gameScreen');
+  setupPlayerPanels(players);
+  buildBoard();
+
+  // Show countdown overlay
+  const overlay = document.getElementById('countdownOverlay');
+  const numEl = document.getElementById('countdownNumber');
+  const labelEl = document.getElementById('countdownLabel');
+  overlay.classList.add('active');
+
+  let remaining = duration;
+  numEl.textContent = remaining;
+  labelEl.textContent = 'Get Ready...';
+
+  countdownInterval = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(countdownInterval);
+      overlay.classList.remove('active');
+      return;
+    }
+    numEl.textContent = remaining;
+    numEl.style.animation = 'none';
+    void numEl.offsetWidth; // reflow
+    numEl.style.animation = 'countPop 1s ease';
+
+    if (remaining <= 3) {
+      labelEl.textContent = 'Opening safe area...';
+    }
+  }, 1000);
+});
+
+socket.on('autoOpen', ({ cells }) => {
+  for (const cell of cells) {
+    const td = getTd(cell.row, cell.col);
+    if (td) {
+      td.classList.add('auto-opened', 'revealed');
+      if (cell.number > 0) {
+        td.textContent = cell.number;
+        td.classList.add(`num-${cell.number}`);
+      }
+    }
+  }
+});
+
+socket.on('gameStart', () => {
+  gameState = 'playing';
+});
+
+// ============================================================
+// BOARD
+// ============================================================
+function buildBoard() {
+  const table = document.getElementById('mineBoard');
+  table.innerHTML = '';
+  boardData = Array.from({ length: 30 }, () => Array(30).fill(null));
+
+  for (let r = 0; r < 30; r++) {
+    const tr = document.createElement('tr');
+    for (let c = 0; c < 30; c++) {
+      const td = document.createElement('td');
+      td.dataset.row = r;
+      td.dataset.col = c;
+
+      td.addEventListener('click', () => {
+        if (gameState !== 'playing') return;
+        socket.emit('dig', { row: r, col: c });
+      });
+
+      td.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        if (gameState !== 'playing') return;
+        socket.emit('flag', { row: r, col: c });
+      });
+
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+}
+
+function getTd(row, col) {
+  return document.querySelector(`#mineBoard td[data-row="${row}"][data-col="${col}"]`);
+}
+
+function setupPlayerPanels(players) {
+  const me = players.find(p => p.id === myPlayerId);
+  const opp = players.find(p => p.id !== myPlayerId);
+  const myChar = CHARACTERS[me.color];
+  const oppChar = CHARACTERS[opp.color];
+
+  // Left = me, Right = opponent
+  document.getElementById('leftChar').innerHTML = myChar.svg;
+  document.getElementById('leftName').textContent = me.name;
+  document.getElementById('leftName').style.color = myChar.primary;
+  document.getElementById('leftScore').textContent = '0';
+  document.getElementById('leftScore').style.color = myChar.primary;
+  document.getElementById('leftBombs').textContent = '0';
+
+  document.getElementById('rightChar').innerHTML = oppChar.svg;
+  document.getElementById('rightName').textContent = opp.name;
+  document.getElementById('rightName').style.color = oppChar.primary;
+  document.getElementById('rightScore').textContent = '0';
+  document.getElementById('rightScore').style.color = oppChar.primary;
+  document.getElementById('rightBombs').textContent = '0';
+
+  myColor = me.color;
+}
+
+// ============================================================
+// GAME EVENTS
+// ============================================================
+socket.on('cellsRevealed', ({ cells, playerId: pid, scores }) => {
+  const colorKey = scores.find(s => s.id === pid)?.color;
+  const tintClass = colorKey ? CHARACTERS[colorKey].tintClass : '';
+
+  for (const cell of cells) {
+    const td = getTd(cell.row, cell.col);
+    if (!td) continue;
+    td.classList.add('revealed');
+    td.classList.remove('flagged');
+    if (tintClass) td.classList.add(tintClass);
+    if (cell.number > 0) {
+      td.textContent = cell.number;
+      td.classList.add(`num-${cell.number}`);
+    }
+  }
+
+  updateScores(scores);
+});
+
+socket.on('bombHit', ({ row, col, playerId: pid, penaltyUntil, scores }) => {
+  const td = getTd(row, col);
+  if (td) {
+    td.classList.add('revealed', 'bomb-revealed');
+    td.classList.remove('flagged');
+    td.textContent = '💣';
+    td.style.fontSize = '14px';
+
+    // Explosion effect
+    const boom = document.createElement('div');
+    boom.className = 'explosion';
+    td.style.position = 'relative';
+    td.appendChild(boom);
+    setTimeout(() => boom.remove(), 600);
+  }
+
+  updateScores(scores);
+
+  // Penalty handling
+  if (pid === myPlayerId) {
+    showMyPenalty(penaltyUntil);
+  } else {
+    showOpponentPenalty(pid);
+  }
+});
+
+function showMyPenalty(until) {
+  const overlay = document.getElementById('myPenaltyOverlay');
+  const timerEl = document.getElementById('penaltyCountdown');
+  overlay.classList.add('active');
+
+  if (penaltyTimer) clearInterval(penaltyTimer);
+
+  function updateTimer() {
+    const remaining = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+    timerEl.textContent = remaining;
+    if (remaining <= 0) {
+      clearInterval(penaltyTimer);
+      overlay.classList.remove('active');
+    }
+  }
+  updateTimer();
+  penaltyTimer = setInterval(updateTimer, 100);
+}
+
+function showOpponentPenalty(pid) {
+  // Determine which panel is the opponent
+  const badge = document.getElementById('rightPenalty');
+  badge.style.display = 'block';
+  setTimeout(() => {
+    badge.style.display = 'none';
+  }, 5000);
+}
+
+socket.on('flagUpdate', ({ row, col, flagged }) => {
+  const td = getTd(row, col);
+  if (!td) return;
+  if (flagged) {
+    td.classList.add('flagged');
+  } else {
+    td.classList.remove('flagged');
+  }
+});
+
+socket.on('penalized', () => {
+  // Already penalized, do nothing extra
+});
+
+function updateScores(scores) {
+  const me = scores.find(s => s.id === myPlayerId);
+  const opp = scores.find(s => s.id !== myPlayerId);
+
+  if (me) {
+    document.getElementById('leftScore').textContent = me.cells;
+    document.getElementById('leftBombs').textContent = me.bombs;
+  }
+  if (opp) {
+    document.getElementById('rightScore').textContent = opp.cells;
+    document.getElementById('rightBombs').textContent = opp.bombs;
+  }
+}
+
+// ============================================================
+// GAME END
+// ============================================================
+socket.on('gameEnd', ({ results, winner }) => {
+  gameState = 'finished';
+  showScreen('resultScreen');
+
+  const titleEl = document.getElementById('resultTitle');
+  if (winner === myPlayerId) {
+    titleEl.textContent = '🎉 Victory!';
+    titleEl.className = 'result-title win';
+  } else if (winner === null) {
+    titleEl.textContent = '🤝 Draw!';
+    titleEl.className = 'result-title draw';
+  } else {
+    titleEl.textContent = 'Defeat...';
+    titleEl.className = 'result-title lose';
+  }
+
+  const cardsEl = document.getElementById('resultCards');
+  cardsEl.innerHTML = '';
+
+  for (const r of results) {
+    const ch = CHARACTERS[r.color];
+    const isWinner = r.id === winner;
+    const card = document.createElement('div');
+    card.className = 'result-card' + (isWinner ? ' winner' : '');
+    card.innerHTML = `
+      <div class="rc-char">${ch.svg}</div>
+      <div class="rc-name" style="color:${ch.primary}">${r.name}</div>
+      <div class="rc-stat"><span>Cells</span><span>${r.cells}</span></div>
+      <div class="rc-stat"><span>Bombs</span><span style="color:#e94560">×${r.bombs}</span></div>
+      <div class="rc-stat"><span>Penalty</span><span style="color:#e94560">${r.penalty}</span></div>
+      <div class="rc-total" style="color:${ch.primary}">${r.finalScore}</div>
+    `;
+    cardsEl.appendChild(card);
+  }
+});
+
+document.getElementById('btnRestart').addEventListener('click', () => {
+  socket.emit('requestRestart');
+});
+
+document.getElementById('btnExit').addEventListener('click', () => {
+  socket.emit('leaveRoom');
+  showScreen('matchingScreen');
+  resetMatchingScreen();
+});
+
+// ============================================================
+// OPPONENT LEFT
+// ============================================================
+socket.on('opponentLeft', () => {
+  alert('Opponent has left the game.');
+  showScreen('matchingScreen');
+  resetMatchingScreen();
+});
+
+function resetMatchingScreen() {
+  waitingMsg.classList.remove('show');
+  btnCreate.disabled = false;
+  btnJoin.disabled = false;
+  errorMsg.textContent = '';
+  gameState = 'matching';
+  selectedColor = null;
+  confirmed = false;
+  myPlayerId = null;
+  myColor = null;
+}
+
+// Prevent context menu on the entire page
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+</script>
+</body>
+</html>
