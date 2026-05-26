@@ -5,7 +5,18 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
+
+// Prevent server crash on unhandled errors
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err);
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -271,106 +282,118 @@ io.on('connection', (socket) => {
 
   // --- GAME ACTIONS ---
   socket.on('dig', ({ row, col }) => {
-    const room = rooms[currentRoom];
-    if (!room || room.state !== 'playing') return;
+    try {
+      const room = rooms[currentRoom];
+      if (!room || room.state !== 'playing') return;
+      if (!room.board || !room.revealedBy) return;
+      if (row < 0 || row >= 30 || col < 0 || col >= 30) return;
 
-    // Check penalty
-    const penalty = room.penalties[playerId];
-    if (penalty && Date.now() < penalty.until) {
-      socket.emit('penalized');
-      return;
-    }
+      // Check penalty
+      const penalty = room.penalties[playerId];
+      if (penalty && Date.now() < penalty.until) {
+        socket.emit('penalized');
+        return;
+      }
 
-    const key = `${row},${col}`;
+      const key = `${row},${col}`;
 
-    // Already revealed?
-    if (room.revealedBy[row][col] !== null) return;
+      // Already revealed?
+      if (room.revealedBy[row][col] !== null) return;
 
-    // Is it in auto-opened cells?
-    if (room.autoOpenedCells && room.autoOpenedCells.has(key)) return;
+      // Is it in auto-opened cells?
+      if (room.autoOpenedCells && room.autoOpenedCells.has(key)) return;
 
-    // Has a flag? Block dig (must remove flag first)
-    const myFlags = room.flagsByPlayer[playerId];
-    if (myFlags && myFlags.has(key)) return;
+      // Has a flag? Block dig (must remove flag first)
+      const myFlags = room.flagsByPlayer[playerId];
+      if (myFlags && myFlags.has(key)) return;
 
-    const cell = room.board[row][col];
+      const cell = room.board[row][col];
 
-    if (cell.mine) {
-      // BOMB HIT
-      room.scores[playerId].bombs++;
-      room.bombsRevealed[key] = true;
-      room.revealedBy[row][col] = '__bomb__';
-      room.revealedCount++;
+      if (cell.mine) {
+        // BOMB HIT
+        room.scores[playerId].bombs++;
+        room.bombsRevealed[key] = true;
+        room.revealedBy[row][col] = '__bomb__';
+        room.revealedCount++;
 
-      // 5 second penalty
-      room.penalties[playerId] = { until: Date.now() + 5000 };
+        // 5 second penalty
+        room.penalties[playerId] = { until: Date.now() + 5000 };
 
-      io.to(currentRoom).emit('bombHit', {
-        row, col, playerId,
-        penaltyUntil: room.penalties[playerId].until,
-        scores: getScores(room)
-      });
+        io.to(currentRoom).emit('bombHit', {
+          row, col, playerId,
+          penaltyUntil: room.penalties[playerId].until,
+          scores: getScores(room)
+        });
 
-      checkGameEnd(room);
-    } else {
-      // Safe cell - perform cascade if number is 0
-      if (cell.number === 0) {
-        const cascaded = performCascade(room.board, 30, 30, row, col);
-        const newlyRevealed = [];
-        for (const cellKey of cascaded) {
-          const [cr, cc] = cellKey.split(',').map(Number);
-          if (room.revealedBy[cr][cc] === null && !(room.autoOpenedCells && room.autoOpenedCells.has(cellKey))) {
-            room.revealedBy[cr][cc] = playerId;
-            room.scores[playerId].cells++;
-            room.revealedCount++;
-            newlyRevealed.push({ row: cr, col: cc, number: room.board[cr][cc].number });
+        checkGameEnd(room);
+      } else {
+        // Safe cell - perform cascade if number is 0
+        if (cell.number === 0) {
+          const cascaded = performCascade(room.board, 30, 30, row, col);
+          const newlyRevealed = [];
+          for (const cellKey of cascaded) {
+            const [cr, cc] = cellKey.split(',').map(Number);
+            if (room.revealedBy[cr][cc] === null && !(room.autoOpenedCells && room.autoOpenedCells.has(cellKey))) {
+              room.revealedBy[cr][cc] = playerId;
+              room.scores[playerId].cells++;
+              room.revealedCount++;
+              newlyRevealed.push({ row: cr, col: cc, number: room.board[cr][cc].number });
+            }
           }
-        }
-        if (newlyRevealed.length > 0) {
+          if (newlyRevealed.length > 0) {
+            io.to(currentRoom).emit('cellsRevealed', {
+              cells: newlyRevealed,
+              playerId,
+              scores: getScores(room)
+            });
+          }
+        } else {
+          // Single cell reveal
+          room.revealedBy[row][col] = playerId;
+          room.scores[playerId].cells++;
+          room.revealedCount++;
           io.to(currentRoom).emit('cellsRevealed', {
-            cells: newlyRevealed,
+            cells: [{ row, col, number: cell.number }],
             playerId,
             scores: getScores(room)
           });
         }
-      } else {
-        // Single cell reveal
-        room.revealedBy[row][col] = playerId;
-        room.scores[playerId].cells++;
-        room.revealedCount++;
-        io.to(currentRoom).emit('cellsRevealed', {
-          cells: [{ row, col, number: cell.number }],
-          playerId,
-          scores: getScores(room)
-        });
-      }
 
-      checkGameEnd(room);
+        checkGameEnd(room);
+      }
+    } catch (err) {
+      console.error('Error in dig handler:', err);
     }
   });
 
   socket.on('flag', ({ row, col }) => {
-    const room = rooms[currentRoom];
-    if (!room || room.state !== 'playing') return;
+    try {
+      const room = rooms[currentRoom];
+      if (!room || room.state !== 'playing') return;
+      if (!room.revealedBy) return;
+      if (row < 0 || row >= 30 || col < 0 || col >= 30) return;
 
-    const penalty = room.penalties[playerId];
-    if (penalty && Date.now() < penalty.until) {
-      socket.emit('penalized');
-      return;
-    }
+      const penalty = room.penalties[playerId];
+      if (penalty && Date.now() < penalty.until) {
+        socket.emit('penalized');
+        return;
+      }
 
-    const key = `${row},${col}`;
-    // Can't flag revealed cells
-    if (room.revealedBy[row][col] !== null) return;
-    if (room.autoOpenedCells && room.autoOpenedCells.has(key)) return;
+      const key = `${row},${col}`;
+      // Can't flag revealed cells
+      if (room.revealedBy[row][col] !== null) return;
+      if (room.autoOpenedCells && room.autoOpenedCells.has(key)) return;
 
-    const flags = room.flagsByPlayer[playerId];
-    if (flags.has(key)) {
-      flags.delete(key);
-      socket.emit('flagUpdate', { row, col, flagged: false });
-    } else {
-      flags.add(key);
-      socket.emit('flagUpdate', { row, col, flagged: true });
+      const flags = room.flagsByPlayer[playerId];
+      if (flags.has(key)) {
+        flags.delete(key);
+        socket.emit('flagUpdate', { row, col, flagged: false });
+      } else {
+        flags.add(key);
+        socket.emit('flagUpdate', { row, col, flagged: true });
+      }
+    } catch (err) {
+      console.error('Error in flag handler:', err);
     }
   });
 

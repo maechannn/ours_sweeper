@@ -692,7 +692,23 @@ const COLOR_KEYS = ['red', 'blue', 'green', 'yellow', 'pink', 'purple'];
 // ============================================================
 // GLOBALS
 // ============================================================
-const socket = io();
+const socket = io({
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000
+});
+
+socket.on('connect_error', (err) => {
+  console.log('Connection error, retrying...');
+});
+
+socket.on('disconnect', (reason) => {
+  console.log('Disconnected:', reason);
+  if (reason === 'io server disconnect') {
+    socket.connect();
+  }
+});
 let myPlayerId = null;
 let myColor = null;
 let gameState = 'matching';
