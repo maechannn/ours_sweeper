@@ -208,6 +208,13 @@
       margin-bottom: 0.6rem;
       transition: transform 0.3s;
     }
+    .char-card .char-svg img,
+    .panel-char img,
+    .rc-char img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
     .char-card:hover .char-svg {
       transform: translateY(-5px);
       animation: charBounce 0.5s ease infinite alternate;
@@ -411,13 +418,13 @@
     .num-7 { color: #000000 !important; }
     .num-8 { color: #808080 !important; }
 
-    /* Player color tints */
-    .tint-red { background-color: rgba(255, 115, 118, 0.3) !important; }
-    .tint-blue { background-color: rgba(100, 229, 255, 0.3) !important; }
-    .tint-green { background-color: rgba(66, 255, 71, 0.3) !important; }
-    .tint-yellow { background-color: rgba(255, 173, 79, 0.3) !important; }
-    .tint-pink { background-color: rgba(255, 147, 231, 0.3) !important; }
-    .tint-purple { background-color: rgba(212, 129, 255, 0.3) !important; }
+    /* Player color tints - solid pastel based on specified hex codes */
+    .tint-red { background-color: #FFBABB !important; }
+    .tint-blue { background-color: #B8F0FF !important; }
+    .tint-green { background-color: #B0FFB2 !important; }
+    .tint-yellow { background-color: #FFD9A8 !important; }
+    .tint-pink { background-color: #FF88F1 !important; }
+    .tint-purple { background-color: #D481FF !important; }
 
     /* Explosion effect */
     .explosion {
@@ -641,239 +648,42 @@ const CHARACTERS = {
     label: 'Red',
     tintClass: 'tint-red',
     primary: '#FF7376',
-    svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-      <!-- Body -->
-      <ellipse cx="50" cy="58" rx="25" ry="28" fill="#e94560"/>
-      <!-- Belly -->
-      <ellipse cx="50" cy="63" rx="16" ry="18" fill="#f7a0a0"/>
-      <!-- Head -->
-      <circle cx="50" cy="30" r="20" fill="#e94560"/>
-      <!-- Eye whites -->
-      <circle cx="43" cy="26" r="7" fill="#fff"/>
-      <circle cx="57" cy="26" r="7" fill="#fff"/>
-      <!-- Pupils -->
-      <circle cx="44" cy="27" r="4" fill="#111"/>
-      <circle cx="58" cy="27" r="4" fill="#111"/>
-      <!-- Eye shines -->
-      <circle cx="45.5" cy="25.5" r="1.5" fill="#fff"/>
-      <circle cx="59.5" cy="25.5" r="1.5" fill="#fff"/>
-      <!-- Beak -->
-      <path d="M46 34 Q50 42 54 34 Q50 37 46 34Z" fill="#f5a623"/>
-      <!-- Wings -->
-      <ellipse cx="27" cy="55" rx="8" ry="15" fill="#c23152" transform="rotate(-10 27 55)"/>
-      <ellipse cx="73" cy="55" rx="8" ry="15" fill="#c23152" transform="rotate(10 73 55)"/>
-      <!-- Tail feathers -->
-      <path d="M40 84 Q35 98 30 95" stroke="#f5a623" stroke-width="3" fill="none" stroke-linecap="round"/>
-      <path d="M50 86 Q50 100 50 98" stroke="#e94560" stroke-width="3" fill="none" stroke-linecap="round"/>
-      <path d="M60 84 Q65 98 70 95" stroke="#4ecdc4" stroke-width="3" fill="none" stroke-linecap="round"/>
-      <!-- Feet -->
-      <path d="M40 85 L37 94 M40 85 L40 94 M40 85 L43 94" stroke="#f5a623" stroke-width="2" stroke-linecap="round"/>
-      <path d="M60 85 L57 94 M60 85 L60 94 M60 85 L63 94" stroke="#f5a623" stroke-width="2" stroke-linecap="round"/>
-      <!-- Crest -->
-      <path d="M40 14 Q42 4 50 10" stroke="#e94560" stroke-width="3" fill="#ff6b6b" stroke-linecap="round"/>
-      <path d="M50 10 Q55 2 56 12" stroke="#e94560" stroke-width="3" fill="#ff6b6b" stroke-linecap="round"/>
-    </svg>`
+    img: '/characters/red_parrot.png'
   },
   blue: {
     name: 'Penguin',
     label: 'Blue',
     tintClass: 'tint-blue',
     primary: '#64E5FF',
-    svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-      <!-- Body -->
-      <ellipse cx="50" cy="58" rx="26" ry="30" fill="#2c3e50"/>
-      <!-- Belly -->
-      <ellipse cx="50" cy="62" rx="17" ry="22" fill="#ecf0f1"/>
-      <!-- Head -->
-      <circle cx="50" cy="28" r="20" fill="#2c3e50"/>
-      <!-- Eye whites -->
-      <circle cx="42" cy="25" r="7.5" fill="#fff"/>
-      <circle cx="58" cy="25" r="7.5" fill="#fff"/>
-      <!-- Pupils -->
-      <circle cx="43" cy="26" r="4.5" fill="#111"/>
-      <circle cx="59" cy="26" r="4.5" fill="#111"/>
-      <!-- Eye shines -->
-      <circle cx="44.5" cy="24.5" r="1.5" fill="#fff"/>
-      <circle cx="60.5" cy="24.5" r="1.5" fill="#fff"/>
-      <!-- Beak -->
-      <path d="M46 33 L50 39 L54 33Z" fill="#f39c12"/>
-      <!-- Cheeks -->
-      <circle cx="37" cy="32" r="3" fill="#4ecdc4" opacity="0.5"/>
-      <circle cx="63" cy="32" r="3" fill="#4ecdc4" opacity="0.5"/>
-      <!-- Wings -->
-      <ellipse cx="24" cy="58" rx="7" ry="18" fill="#34495e" transform="rotate(-5 24 58)"/>
-      <ellipse cx="76" cy="58" rx="7" ry="18" fill="#34495e" transform="rotate(5 76 58)"/>
-      <!-- Feet -->
-      <ellipse cx="40" cy="90" rx="9" ry="4" fill="#f39c12"/>
-      <ellipse cx="60" cy="90" rx="9" ry="4" fill="#f39c12"/>
-      <!-- Bow tie -->
-      <path d="M44 44 L50 47 L56 44 L50 50Z" fill="#4ecdc4"/>
-    </svg>`
+    img: '/characters/blue_penguin.png'
   },
   green: {
     name: 'Turtle',
     label: 'Green',
     tintClass: 'tint-green',
     primary: '#42FF47',
-    svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-      <!-- Shell -->
-      <ellipse cx="50" cy="55" rx="30" ry="25" fill="#27ae60"/>
-      <!-- Shell pattern -->
-      <ellipse cx="50" cy="50" rx="12" ry="10" fill="#2ecc71" stroke="#1e8449" stroke-width="1.5"/>
-      <path d="M38 50 Q32 42 38 38" stroke="#1e8449" stroke-width="1.5" fill="none"/>
-      <path d="M62 50 Q68 42 62 38" stroke="#1e8449" stroke-width="1.5" fill="none"/>
-      <path d="M42 62 Q38 68 42 72" stroke="#1e8449" stroke-width="1.5" fill="none"/>
-      <path d="M58 62 Q62 68 58 72" stroke="#1e8449" stroke-width="1.5" fill="none"/>
-      <!-- Head -->
-      <circle cx="50" cy="24" r="15" fill="#82e0aa"/>
-      <!-- Eye whites -->
-      <circle cx="44" cy="21" r="5.5" fill="#fff"/>
-      <circle cx="56" cy="21" r="5.5" fill="#fff"/>
-      <!-- Pupils -->
-      <circle cx="45" cy="22" r="3" fill="#111"/>
-      <circle cx="57" cy="22" r="3" fill="#111"/>
-      <!-- Eye shines -->
-      <circle cx="46" cy="20.5" r="1.2" fill="#fff"/>
-      <circle cx="58" cy="20.5" r="1.2" fill="#fff"/>
-      <!-- Smile -->
-      <path d="M44 28 Q50 33 56 28" stroke="#1e8449" stroke-width="2" fill="none" stroke-linecap="round"/>
-      <!-- Cheeks -->
-      <circle cx="39" cy="27" r="3" fill="#f9c4d2" opacity="0.5"/>
-      <circle cx="61" cy="27" r="3" fill="#f9c4d2" opacity="0.5"/>
-      <!-- Legs -->
-      <ellipse cx="25" cy="62" rx="8" ry="6" fill="#82e0aa" transform="rotate(-20 25 62)"/>
-      <ellipse cx="75" cy="62" rx="8" ry="6" fill="#82e0aa" transform="rotate(20 75 62)"/>
-      <ellipse cx="30" cy="78" rx="7" ry="5" fill="#82e0aa" transform="rotate(-10 30 78)"/>
-      <ellipse cx="70" cy="78" rx="7" ry="5" fill="#82e0aa" transform="rotate(10 70 78)"/>
-      <!-- Tail -->
-      <path d="M50 80 Q50 88 53 85" fill="#82e0aa"/>
-    </svg>`
+    img: '/characters/green_turtle.png'
   },
   yellow: {
     name: 'Fox',
     label: 'Orange',
     tintClass: 'tint-yellow',
     primary: '#FFAD4F',
-    svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-      <!-- Body -->
-      <ellipse cx="50" cy="62" rx="22" ry="25" fill="#f39c12"/>
-      <!-- Belly -->
-      <ellipse cx="50" cy="67" rx="14" ry="17" fill="#fdebd0"/>
-      <!-- Tail -->
-      <path d="M72 68 Q90 50 85 38 Q82 45 75 55" fill="#f39c12"/>
-      <path d="M85 38 Q83 44 78 48" fill="#fdebd0"/>
-      <!-- Head -->
-      <circle cx="50" cy="32" r="18" fill="#f39c12"/>
-      <!-- Ears -->
-      <path d="M34 22 L30 4 L42 18Z" fill="#f39c12"/>
-      <path d="M36 18 L32 8 L41 18Z" fill="#fdebd0"/>
-      <path d="M66 22 L70 4 L58 18Z" fill="#f39c12"/>
-      <path d="M64 18 L68 8 L59 18Z" fill="#fdebd0"/>
-      <!-- Eye whites -->
-      <circle cx="43" cy="29" r="6" fill="#fff"/>
-      <circle cx="57" cy="29" r="6" fill="#fff"/>
-      <!-- Pupils (sly look) -->
-      <ellipse cx="44" cy="30" rx="3.5" ry="4" fill="#111"/>
-      <ellipse cx="58" cy="30" rx="3.5" ry="4" fill="#111"/>
-      <!-- Eye shines -->
-      <circle cx="45.5" cy="28.5" r="1.5" fill="#fff"/>
-      <circle cx="59.5" cy="28.5" r="1.5" fill="#fff"/>
-      <!-- Nose -->
-      <ellipse cx="50" cy="37" rx="3" ry="2" fill="#111"/>
-      <!-- Mouth -->
-      <path d="M47 39 Q50 42 53 39" stroke="#111" stroke-width="1.2" fill="none"/>
-      <!-- Whiskers -->
-      <line x1="30" y1="35" x2="42" y2="37" stroke="#c68c10" stroke-width="1"/>
-      <line x1="30" y1="39" x2="42" y2="39" stroke="#c68c10" stroke-width="1"/>
-      <line x1="70" y1="35" x2="58" y2="37" stroke="#c68c10" stroke-width="1"/>
-      <line x1="70" y1="39" x2="58" y2="39" stroke="#c68c10" stroke-width="1"/>
-      <!-- Feet -->
-      <ellipse cx="40" cy="88" rx="7" ry="4" fill="#2c3e50"/>
-      <ellipse cx="60" cy="88" rx="7" ry="4" fill="#2c3e50"/>
-    </svg>`
+    img: '/characters/orange_fox.png'
   },
   pink: {
     name: 'Pig',
     label: 'Pink',
     tintClass: 'tint-pink',
     primary: '#FF93E7',
-    svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-      <!-- Body -->
-      <ellipse cx="50" cy="60" rx="28" ry="27" fill="#fd79a8"/>
-      <!-- Belly -->
-      <ellipse cx="50" cy="64" rx="19" ry="19" fill="#fcc4d9"/>
-      <!-- Head -->
-      <circle cx="50" cy="30" r="20" fill="#fd79a8"/>
-      <!-- Ears -->
-      <ellipse cx="34" cy="14" rx="8" ry="10" fill="#fd79a8" transform="rotate(-15 34 14)"/>
-      <ellipse cx="35" cy="15" rx="5" ry="7" fill="#e55b8c" transform="rotate(-15 35 15)"/>
-      <ellipse cx="66" cy="14" rx="8" ry="10" fill="#fd79a8" transform="rotate(15 66 14)"/>
-      <ellipse cx="65" cy="15" rx="5" ry="7" fill="#e55b8c" transform="rotate(15 65 15)"/>
-      <!-- Eye whites -->
-      <circle cx="42" cy="27" r="6.5" fill="#fff"/>
-      <circle cx="58" cy="27" r="6.5" fill="#fff"/>
-      <!-- Pupils -->
-      <circle cx="43" cy="28" r="3.5" fill="#111"/>
-      <circle cx="59" cy="28" r="3.5" fill="#111"/>
-      <!-- Eye shines -->
-      <circle cx="44.5" cy="26.5" r="1.5" fill="#fff"/>
-      <circle cx="60.5" cy="26.5" r="1.5" fill="#fff"/>
-      <!-- Snout -->
-      <ellipse cx="50" cy="36" rx="10" ry="7" fill="#e55b8c"/>
-      <!-- Nostrils -->
-      <ellipse cx="46" cy="36" rx="2.5" ry="2" fill="#c0447a"/>
-      <ellipse cx="54" cy="36" rx="2.5" ry="2" fill="#c0447a"/>
-      <!-- Smile -->
-      <path d="M44 41 Q50 45 56 41" stroke="#c0447a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <!-- Cheeks -->
-      <circle cx="34" cy="33" r="4" fill="#ff9ec0" opacity="0.5"/>
-      <circle cx="66" cy="33" r="4" fill="#ff9ec0" opacity="0.5"/>
-      <!-- Feet -->
-      <ellipse cx="38" cy="88" rx="8" ry="5" fill="#e55b8c"/>
-      <ellipse cx="62" cy="88" rx="8" ry="5" fill="#e55b8c"/>
-      <!-- Tail (curly) -->
-      <path d="M75 55 Q82 50 80 58 Q78 65 85 60" stroke="#fd79a8" stroke-width="3" fill="none" stroke-linecap="round"/>
-    </svg>`
+    img: '/characters/pink_pig.png'
   },
   purple: {
     name: 'Snake',
     label: 'Purple',
     tintClass: 'tint-purple',
-    primary: '#D481FF',
-    svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-      <!-- Coiled body -->
-      <path d="M55 85 Q20 85 20 65 Q20 50 35 50 Q50 50 50 60 Q50 70 40 70 Q30 70 30 62"
-            stroke="#a25ddc" stroke-width="12" fill="none" stroke-linecap="round"/>
-      <!-- Body stripe -->
-      <path d="M55 85 Q20 85 20 65 Q20 50 35 50 Q50 50 50 60 Q50 70 40 70 Q30 70 30 62"
-            stroke="#c39bec" stroke-width="4" fill="none" stroke-linecap="round"/>
-      <!-- Neck going up -->
-      <path d="M55 85 Q70 82 70 65 Q70 45 60 35" stroke="#a25ddc" stroke-width="12" fill="none" stroke-linecap="round"/>
-      <path d="M55 85 Q70 82 70 65 Q70 45 60 35" stroke="#c39bec" stroke-width="4" fill="none" stroke-linecap="round"/>
-      <!-- Head -->
-      <ellipse cx="55" cy="28" rx="16" ry="14" fill="#a25ddc"/>
-      <!-- Belly pattern on head -->
-      <ellipse cx="55" cy="32" rx="10" ry="7" fill="#c39bec"/>
-      <!-- Eye whites -->
-      <circle cx="48" cy="24" r="6" fill="#fff"/>
-      <circle cx="62" cy="24" r="6" fill="#fff"/>
-      <!-- Pupils (slit) -->
-      <ellipse cx="48" cy="24" rx="2" ry="4.5" fill="#111"/>
-      <ellipse cx="62" cy="24" rx="2" ry="4.5" fill="#111"/>
-      <!-- Eye shines -->
-      <circle cx="49.5" cy="22.5" r="1.5" fill="#fff"/>
-      <circle cx="63.5" cy="22.5" r="1.5" fill="#fff"/>
-      <!-- Tongue -->
-      <path d="M55 36 L55 43 M55 43 L52 46 M55 43 L58 46" stroke="#e94560" stroke-width="2" stroke-linecap="round"/>
-      <!-- Small crown/spots -->
-      <circle cx="46" cy="16" r="2" fill="#d4a5f5"/>
-      <circle cx="55" cy="14" r="2" fill="#d4a5f5"/>
-      <circle cx="64" cy="16" r="2" fill="#d4a5f5"/>
-      <!-- Body spots -->
-      <circle cx="25" cy="65" r="2" fill="#d4a5f5"/>
-      <circle cx="42" cy="55" r="2" fill="#d4a5f5"/>
-      <circle cx="65" cy="60" r="2" fill="#d4a5f5"/>
-    </svg>`
+    primary: '#CC33FF',
+    img: '/characters/purple_snake.png'
   }
 };
 
@@ -977,7 +787,7 @@ function buildCharacterGrid() {
     card.className = 'char-card';
     card.dataset.color = key;
     card.innerHTML = `
-      <div class="char-svg">${ch.svg}</div>
+      <div class="char-svg"><img src="${ch.img}" alt="${ch.name}"></div>
       <div class="char-name">${ch.name}</div>
       <div class="char-color-label" style="color:${ch.primary}">${ch.label}</div>
       <div class="taken-label">TAKEN</div>
@@ -1146,14 +956,14 @@ function setupPlayerPanels(players) {
   const oppChar = CHARACTERS[opp.color];
 
   // Left = me, Right = opponent
-  document.getElementById('leftChar').innerHTML = myChar.svg;
+  document.getElementById('leftChar').innerHTML = `<img src="${myChar.img}" alt="${myChar.name}">`;
   document.getElementById('leftName').textContent = me.name;
   document.getElementById('leftName').style.color = myChar.primary;
   document.getElementById('leftScore').textContent = '0';
   document.getElementById('leftScore').style.color = myChar.primary;
   document.getElementById('leftBombs').textContent = '0';
 
-  document.getElementById('rightChar').innerHTML = oppChar.svg;
+  document.getElementById('rightChar').innerHTML = `<img src="${oppChar.img}" alt="${oppChar.name}">`;
   document.getElementById('rightName').textContent = opp.name;
   document.getElementById('rightName').style.color = oppChar.primary;
   document.getElementById('rightScore').textContent = '0';
@@ -1295,7 +1105,7 @@ socket.on('gameEnd', ({ results, winner }) => {
     const card = document.createElement('div');
     card.className = 'result-card' + (isWinner ? ' winner' : '');
     card.innerHTML = `
-      <div class="rc-char">${ch.svg}</div>
+      <div class="rc-char"><img src="${ch.img}" alt="${ch.name}"></div>
       <div class="rc-name" style="color:${ch.primary}">${r.name}</div>
       <div class="rc-stat"><span>Cells</span><span>${r.cells}</span></div>
       <div class="rc-stat"><span>Bombs</span><span style="color:#e94560">×${r.bombs}</span></div>
