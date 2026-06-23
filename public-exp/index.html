@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ours Sweeper - Experiment</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI','Hiragino Sans',sans-serif;background:#1a1a2e;color:#eee;overflow:hidden;height:100vh;user-select:none;}
+
+.screen{display:none;flex-direction:column;align-items:center;justify-content:center;height:100vh;width:100vw;position:absolute;top:0;left:0;}
+.screen.active{display:flex;}
+
+/* MATCHING */
+#matchingScreen{background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);}
+.game-title{font-size:3.5rem;font-weight:900;margin-bottom:.5rem;background:linear-gradient(135deg,#e94560,#f5a623,#4ecdc4,#6c5ce7);background-size:300% 300%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:gradShift 4s ease infinite;}
+@keyframes gradShift{0%,100%{background-position:0% 50%;}50%{background-position:100% 50%;}}
+.game-subtitle{font-size:1rem;color:#8899aa;margin-bottom:2.5rem;letter-spacing:.2em;}
+.match-box{background:rgba(255,255,255,.06);border-radius:20px;padding:2.5rem;width:400px;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);}
+.match-box h2{font-size:1.2rem;margin-bottom:1.5rem;text-align:center;color:#ccc;}
+.input-group{margin-bottom:1rem;}
+.input-group label{display:block;font-size:.85rem;color:#999;margin-bottom:.4rem;}
+.input-group input{width:100%;padding:.8rem 1rem;border:2px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(255,255,255,.05);color:#fff;font-size:1.1rem;outline:none;transition:border-color .3s;}
+.input-group input:focus{border-color:#e94560;}
+.input-group input::placeholder{color:#555;}
+.btn-row{display:flex;gap:.8rem;margin-top:1.5rem;}
+.btn{flex:1;padding:.9rem;border:none;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.btn:hover{transform:translateY(-2px);}
+.btn:active{transform:translateY(0);}
+.btn-create{background:linear-gradient(135deg,#e94560,#c23152);color:#fff;}
+.btn-join{background:linear-gradient(135deg,#4ecdc4,#2eb5ad);color:#fff;}
+.waiting-msg{display:none;text-align:center;margin-top:1.5rem;color:#f5a623;font-size:.95rem;}
+.waiting-msg.show{display:block;}
+.waiting-dots::after{content:'';animation:dots 1.5s steps(4,end) infinite;}
+@keyframes dots{0%{content:'';}25%{content:'.';}50%{content:'..';}75%{content:'...';}}
+.error-msg{color:#e94560;text-align:center;margin-top:1rem;font-size:.9rem;min-height:1.2em;}
+
+/* MODE / PATTERN SELECT */
+#modeSelectScreen,#patternSelectScreen{background:linear-gradient(135deg,#1a1a2e,#16213e);}
+.select-title{font-size:2rem;font-weight:800;margin-bottom:.3rem;}
+.select-subtitle{color:#8899aa;margin-bottom:1.5rem;}
+.host-badge{background:#f5a623;color:#1a1a2e;padding:.3rem .8rem;border-radius:8px;font-size:.8rem;font-weight:700;margin-bottom:1rem;}
+.not-host-msg{color:#8899aa;font-size:.9rem;margin-bottom:1rem;}
+.mode-grid{display:flex;gap:1.2rem;margin-bottom:1.5rem;flex-wrap:wrap;justify-content:center;}
+.pattern-grid{display:flex;gap:1.2rem;margin-bottom:1.5rem;flex-wrap:wrap;justify-content:center;}
+.mode-card,.pattern-card{padding:1.5rem;border-radius:16px;border:3px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);cursor:pointer;transition:all .3s;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;width:220px;}
+.mode-card:hover,.pattern-card:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.3);}
+.mode-card.disabled,.pattern-card.disabled{opacity:.5;cursor:not-allowed;pointer-events:none;}
+.mode-card h3,.pattern-card h3{font-size:1.2rem;margin-bottom:.5rem;}
+.mode-card p,.pattern-card p{font-size:.85rem;color:#aaa;line-height:1.4;}
+.btn-back{background:rgba(255,255,255,.1);color:#aaa;padding:.6rem 1.5rem;border:1px solid rgba(255,255,255,.2);border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s;position:absolute;top:2rem;left:2rem;}
+.btn-back:hover{background:rgba(255,255,255,.2);color:#fff;transform:translateX(-2px);}
+
+/* READY SCREEN (VS) */
+#readyScreen{background:linear-gradient(135deg,#1a1a2e,#16213e);}
+.ready-players{display:flex;gap:3rem;margin-bottom:2rem;align-items:center;}
+.ready-player{display:flex;flex-direction:column;align-items:center;gap:.5rem;}
+.ready-player .rp-char{width:80px;height:80px;}
+.ready-player .rp-char img{width:100%;height:100%;object-fit:contain;}
+.ready-player .rp-name{font-size:1.1rem;font-weight:700;}
+.ready-player .rp-status{font-size:.9rem;color:#666;font-weight:600;}
+.ready-player .rp-status.is-ready{color:#4ecdc4;}
+.btn-ready{background:linear-gradient(135deg,#4ecdc4,#2eb5ad);color:#fff;padding:1rem 3rem;border:none;border-radius:14px;font-size:1.1rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.btn-ready:hover{transform:translateY(-2px);box-shadow:0 5px 20px rgba(78,205,196,.4);}
+.btn-ready:disabled{opacity:.4;pointer-events:none;}
+
+/* GAME */
+#gameScreen{background:#1a1a2e;flex-direction:row;justify-content:center;align-items:center;}
+.player-panel{width:220px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:1rem;gap:.6rem;height:100vh;padding-top:10vh;border-radius:16px;}
+.player-panel.me-panel{border:2px solid rgba(245,166,35,.5);background:rgba(245,166,35,.04);box-shadow:0 0 15px rgba(245,166,35,.1);}
+.me-label{font-size:.7rem;font-weight:700;color:#f5a623;letter-spacing:.15em;text-transform:uppercase;margin-bottom:-.2rem;}
+.player-panel .panel-char{width:80px;height:80px;}
+.player-panel .panel-char img{width:100%;height:100%;object-fit:contain;}
+.player-panel .panel-name{font-size:1.1rem;font-weight:700;}
+.player-panel .panel-score{font-size:2rem;font-weight:900;}
+.player-panel .panel-bombs{display:flex;align-items:center;gap:.3rem;font-size:.9rem;color:#e94560;}
+.player-panel .panel-bombs .bomb-icon{font-size:1.2rem;}
+.player-panel .penalty-badge{display:none;background:#e94560;color:#fff;padding:.3rem .8rem;border-radius:8px;font-size:.8rem;font-weight:700;animation:penaltyPulse .5s ease infinite alternate;}
+@keyframes penaltyPulse{from{opacity:.7;}to{opacity:1;}}
+
+.board-container{display:flex;flex-direction:column;align-items:center;}
+.game-mode-label{font-size:.85rem;font-weight:700;color:#f5a623;text-align:center;margin-bottom:.3rem;letter-spacing:.1em;text-transform:uppercase;min-height:1.2em;}
+.final-countdown-bar{display:none;background:rgba(233,69,96,.15);border:2px solid #e94560;border-radius:10px;padding:.5rem 2rem;margin-bottom:.5rem;font-size:1.2rem;font-weight:800;color:#e94560;text-align:center;min-width:200px;}
+.final-countdown-bar.active{display:block;animation:countdownPulse 1s ease infinite alternate;}
+@keyframes countdownPulse{0%{background:rgba(233,69,96,.1);transform:scale(1);}100%{background:rgba(233,69,96,.25);transform:scale(1.03);}}
+
+#mineBoard{border-collapse:collapse;border:3px solid #555;}
+#mineBoard td{text-align:center;vertical-align:middle;font-weight:700;border:1px solid #444;background:#999;cursor:pointer;position:relative;line-height:1;}
+#mineBoard td.revealed{background:#d4d4d4;cursor:default;border:1px solid #bbb;}
+#mineBoard td.bomb-revealed{background:#ff4444;cursor:default;}
+#mineBoard td.auto-opened{background:#d4d4d4;cursor:default;border:1px solid #bbb;}
+#mineBoard td.flagged::after{content:'\1F6A9';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);}
+.num-1{color:#0000ff!important;}.num-2{color:#008000!important;}.num-3{color:#ff0000!important;}.num-4{color:#000080!important;}.num-5{color:#800000!important;}.num-6{color:#008080!important;}.num-7{color:#000!important;}.num-8{color:#808080!important;}
+
+.tint-red{background-color:#FFBABB!important;}
+.tint-blue{background-color:#B8F0FF!important;}
+
+/* Co-op flag markers */
+.coop-flag-p1::after{content:'\1F6A9';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);filter:hue-rotate(0deg);}
+.coop-flag-p2::after{content:'\1F6A9';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);filter:hue-rotate(180deg);}
+
+/* Opponent cursor (co-op) */
+.opp-cursor{position:absolute;width:14px;height:14px;border-radius:50%;pointer-events:none;z-index:40;transition:left 50ms linear,top 50ms linear;border:2px solid rgba(255,255,255,.8);display:none;}
+
+/* Explosion */
+.explosion{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:radial-gradient(circle,#ff6b35,#ff4444 40%,transparent 70%);animation:explode .6s ease-out forwards;pointer-events:none;z-index:50;}
+@keyframes explode{0%{transform:translate(-50%,-50%) scale(0);opacity:1;}50%{transform:translate(-50%,-50%) scale(3);opacity:.8;}100%{transform:translate(-50%,-50%) scale(5);opacity:0;}}
+
+/* Penalty overlay (VS) */
+.penalty-overlay{display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(233,69,96,.15);z-index:30;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
+.penalty-overlay.active{display:flex;pointer-events:auto;}
+.penalty-overlay .penalty-text{font-size:1.5rem;font-weight:900;color:#e94560;text-shadow:0 2px 10px rgba(0,0,0,.5);}
+.penalty-overlay .penalty-timer{font-size:3rem;font-weight:900;color:#fff;}
+
+/* Solo waiting overlay */
+.solo-waiting-overlay{display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:35;flex-direction:column;align-items:center;justify-content:center;}
+.solo-waiting-overlay.active{display:flex;}
+.solo-waiting-overlay .solo-wait-text{font-size:1.3rem;font-weight:700;color:#4ecdc4;}
+
+/* Countdown overlay */
+.countdown-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:100;flex-direction:column;align-items:center;justify-content:center;}
+.countdown-overlay.active{display:flex;}
+.countdown-number{font-size:8rem;font-weight:900;color:#fff;animation:countPop 1s ease;}
+@keyframes countPop{0%{transform:scale(2);opacity:0;}50%{transform:scale(1);opacity:1;}100%{transform:scale(.9);opacity:.8;}}
+.countdown-label{font-size:1.2rem;color:#8899aa;margin-top:1rem;}
+
+/* Hide scores during VS gameplay */
+.vs-mode #gameScreen .panel-score,.vs-mode #gameScreen .panel-bombs{visibility:hidden;}
+
+/* RESULT */
+#resultScreen{background:linear-gradient(135deg,#1a1a2e,#16213e);justify-content:flex-start;padding-top:3vh;overflow-y:auto;gap:.6rem;}
+.result-graph-wrap{margin-bottom:.5rem;text-align:center;}
+#resultGraph{background:rgba(0,0,0,.3);border-radius:12px;border:1px solid rgba(255,255,255,.1);}
+.graph-legend{display:flex;justify-content:center;gap:2rem;margin-top:.5rem;font-size:.85rem;}
+.graph-legend-item{display:flex;align-items:center;gap:.4rem;}
+.graph-legend-dot{width:14px;height:4px;border-radius:2px;}
+
+.result-reveal{display:flex;flex-direction:column;align-items:center;gap:.6rem;margin-bottom:.8rem;}
+.reveal-row{display:flex;align-items:center;justify-content:center;gap:1.5rem;opacity:0;transform:translateY(15px);transition:opacity .6s ease, transform .6s ease;}
+.reveal-row.show{opacity:1;transform:translateY(0);}
+.reveal-player{display:flex;flex-direction:column;align-items:center;width:160px;}
+.reveal-char{width:50px;height:50px;}
+.reveal-char img{width:100%;height:100%;object-fit:contain;}
+.reveal-name{font-size:.9rem;font-weight:700;margin:.2rem 0;}
+.reveal-value{font-size:2.2rem;font-weight:900;min-width:60px;text-align:center;}
+.reveal-label{font-size:.7rem;color:#999;text-transform:uppercase;letter-spacing:.1em;}
+.reveal-vs{font-size:.8rem;color:#555;font-weight:700;width:50px;text-align:center;}
+.reveal-penalty{font-size:1.5rem;font-weight:800;color:#e94560;text-align:center;}
+.reveal-final{font-size:2.5rem;font-weight:900;text-align:center;}
+.reveal-winner{font-size:.85rem;font-weight:700;color:#f5a623;margin-top:.15rem;}
+.result-title-anim{font-size:2.8rem;font-weight:900;opacity:0;transform:scale(.5);transition:opacity .6s, transform .6s;}
+.result-title-anim.show{opacity:1;transform:scale(1);}
+.result-title-anim.win{color:#f5a623;}
+.result-title-anim.lose{color:#8899aa;}
+.result-title-anim.draw{color:#4ecdc4;}
+.result-title-anim.clear{color:#4ecdc4;}
+.result-buttons{display:flex;gap:1rem;opacity:0;transition:opacity .5s;}
+.result-buttons.show{opacity:1;}
+.btn-restart{background:linear-gradient(135deg,#f5a623,#e09000);color:#fff;}
+.btn-exit{background:linear-gradient(135deg,#666,#444);color:#fff;}
+.btn-log{background:linear-gradient(135deg,#6c5ce7,#5a4bd1);color:#fff;}
+</style>
+</head>
+<body>
+
+<!-- MATCHING -->
+<div id="matchingScreen" class="screen active">
+  <div class="game-title">Ours Sweeper</div>
+  <div class="game-subtitle">EXPERIMENT MODE</div>
+  <div class="match-box">
+    <h2>Let's Play!</h2>
+    <div class="input-group"><label>Player Name</label><input type="text" id="playerNameInput" placeholder="Your name" maxlength="12"></div>
+    <div class="input-group"><label>Room Code (3 digits)</label><input type="text" id="roomCodeInput" placeholder="000 - 999" maxlength="3" pattern="[0-9]*"></div>
+    <div class="btn-row">
+      <button class="btn btn-create" id="btnCreate">Create Room</button>
+      <button class="btn btn-join" id="btnJoin">Join Room</button>
+    </div>
+    <div class="waiting-msg" id="waitingMsg">Waiting for opponent<span class="waiting-dots"></span><br><small id="roomCodeDisplay"></small></div>
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+</div>
+
+<!-- MODE SELECT -->
+<div id="modeSelectScreen" class="screen">
+  <button class="btn-back" id="btnBackToMatching">&larr; Back</button>
+  <div class="select-title">Select Mode</div>
+  <div class="select-subtitle">Choose a game mode</div>
+  <div id="hostBadgeMode"></div>
+  <div class="mode-grid" id="modeGrid">
+    <div class="mode-card" data-mode="solo"><h3>Solo</h3><p>Each player independently solves the same board. No interaction.</p></div>
+    <div class="mode-card" data-mode="coop"><h3>Co-op</h3><p>Work together on one shared board. See each other's cursors and flags.</p></div>
+    <div class="mode-card" data-mode="vs"><h3>VS</h3><p>Compete head-to-head. Classic competitive minesweeper.</p></div>
+  </div>
+</div>
+
+<!-- PATTERN SELECT -->
+<div id="patternSelectScreen" class="screen">
+  <button class="btn-back" id="btnBackToMode">&larr; Back</button>
+  <div class="select-title">Select Pattern</div>
+  <div class="select-subtitle" id="patternSubtitle">Choose a pattern</div>
+  <div id="hostBadgePattern"></div>
+  <div class="pattern-grid" id="patternGrid">
+    <div class="pattern-card" data-pattern="A"><h3>A</h3></div>
+    <div class="pattern-card" data-pattern="B"><h3>B</h3></div>
+    <div class="pattern-card" data-pattern="C"><h3>C</h3></div>
+  </div>
+</div>
+
+<!-- READY (VS) -->
+<div id="readyScreen" class="screen">
+  <button class="btn-back" id="btnBackToPattern">&larr; Back</button>
+  <div class="select-title">Get Ready!</div>
+  <div class="select-subtitle">Both players must press Ready</div>
+  <div class="ready-players" id="readyPlayers"></div>
+  <button class="btn btn-ready" id="btnReady">Ready!</button>
+</div>
+
+<!-- GAME -->
+<div id="gameScreen" class="screen">
+  <div class="player-panel me-panel" id="panelLeft">
+    <div class="me-label">&#9660; YOU</div>
+    <div class="panel-char" id="leftChar"></div>
+    <div class="panel-name" id="leftName">Player 1</div>
+    <div class="panel-score" id="leftScore">0</div>
+    <div class="panel-bombs"><span class="bomb-icon">&#x1F4A3;</span><span id="leftBombs">0</span></div>
+    <div class="penalty-badge" id="leftPenalty">PENALTY</div>
+  </div>
+  <div class="board-container">
+    <div class="game-mode-label" id="gameModeLabel"></div>
+    <div class="final-countdown-bar" id="finalCountdown">&#9201; 30</div>
+    <div style="position:relative;" id="boardWrap">
+      <table id="mineBoard"></table>
+      <div class="penalty-overlay" id="myPenaltyOverlay">
+        <div class="penalty-text">&#x1F4A5; BOOM!</div>
+        <div class="penalty-timer" id="penaltyCountdown">5</div>
+      </div>
+      <div class="solo-waiting-overlay" id="soloWaitingOverlay">
+        <div class="solo-wait-text">もう1人のプレイヤーの完了を待っています<span class="waiting-dots"></span></div>
+      </div>
+      <div class="opp-cursor" id="oppCursor"></div>
+    </div>
+  </div>
+  <div class="player-panel" id="panelRight">
+    <div class="panel-char" id="rightChar"></div>
+    <div class="panel-name" id="rightName">Player 2</div>
+    <div class="panel-score" id="rightScore">0</div>
+    <div class="panel-bombs"><span class="bomb-icon">&#x1F4A3;</span><span id="rightBombs">0</span></div>
+    <div class="penalty-badge" id="rightPenalty">PENALTY</div>
+  </div>
+</div>
+
+<div class="countdown-overlay" id="countdownOverlay">
+  <div class="countdown-number" id="countdownNumber">5</div>
+  <div class="countdown-label" id="countdownLabel">Get Ready...</div>
+</div>
+
+<!-- RESULT -->
+<div id="resultScreen" class="screen">
+  <div class="result-graph-wrap">
+    <canvas id="resultGraph" width="680" height="320"></canvas>
+    <div class="graph-legend" id="graphLegend"></div>
+  </div>
+  <div class="result-reveal" id="resultReveal"></div>
+  <div class="result-title-anim" id="resultTitle"></div>
+  <div class="result-buttons" id="resultButtons">
+    <button class="btn btn-log" id="btnLog">Save Log</button>
+    <button class="btn btn-restart" id="btnRestart">Play Again</button>
+    <button class="btn btn-exit" id="btnExit">Exit</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// ============================================================
+// CHARACTERS (only red/blue used)
+// ============================================================
+const CHARACTERS = {
+  red:  { name:'Parrot',  label:'Red',  tintClass:'tint-red',  primary:'#FF7376', img:'/characters/red_parrot.png' },
+  blue: { name:'Penguin', label:'Blue', tintClass:'tint-blue', primary:'#64E5FF', img:'/characters/blue_penguin.png' }
+};
+
+// ============================================================
+// GLOBALS
+// ============================================================
+const socket = io({ reconnection:true, reconnectionAttempts:10, reconnectionDelay:1000 });
+socket.on('connect_error', () => console.log('Connection error, retrying...'));
+socket.on('disconnect', (reason) => { if (reason === 'io server disconnect') socket.connect(); });
+
+let myPlayerId = null, myColor = null, isHost = false;
+let gameState = 'matching';
+let currentMode = null, currentRows = 20, currentCols = 20;
+let penaltyTimer = null;
+let finalCountdownInterval = null;
+let playersInfo = [];
+let mouseTrackInterval = null;
+let soloFinished = false;
+
+// ============================================================
+// SCREEN
+// ============================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ============================================================
+// MATCHING
+// ============================================================
+const roomCodeInput = document.getElementById('roomCodeInput');
+roomCodeInput.addEventListener('input', e => { e.target.value = e.target.value.replace(/[^0-9]/g,'').slice(0,3); });
+
+document.getElementById('btnCreate').addEventListener('click', () => {
+  const name = document.getElementById('playerNameInput').value.trim() || 'Player';
+  const code = roomCodeInput.value.trim();
+  if (code.length !== 3) { document.getElementById('errorMsg').textContent = 'Enter a 3-digit code.'; return; }
+  document.getElementById('errorMsg').textContent = '';
+  socket.emit('createRoom', { code, playerName: name });
+});
+
+document.getElementById('btnJoin').addEventListener('click', () => {
+  const name = document.getElementById('playerNameInput').value.trim() || 'Player';
+  const code = roomCodeInput.value.trim();
+  if (code.length !== 3) { document.getElementById('errorMsg').textContent = 'Enter a 3-digit code.'; return; }
+  document.getElementById('errorMsg').textContent = '';
+  socket.emit('joinRoom', { code, playerName: name });
+});
+
+socket.on('roomCreated', ({ code, playerId, isHost: h }) => {
+  myPlayerId = playerId; isHost = h;
+  document.getElementById('waitingMsg').classList.add('show');
+  document.getElementById('roomCodeDisplay').textContent = `Room Code: ${code}`;
+  document.getElementById('btnCreate').disabled = true;
+  document.getElementById('btnJoin').disabled = true;
+});
+
+socket.on('roomJoined', ({ code, playerId, isHost: h }) => { myPlayerId = playerId; isHost = h; });
+socket.on('error', ({ message }) => { document.getElementById('errorMsg').textContent = message; });
+socket.on('notHost', () => {});
+
+// ============================================================
+// BACK BUTTONS
+// ============================================================
+document.getElementById('btnBackToMatching').addEventListener('click', () => {
+  socket.emit('goBack', { from: 'modeSelect' });
+});
+document.getElementById('btnBackToMode').addEventListener('click', () => {
+  socket.emit('goBack', { from: 'patternSelect' });
+});
+document.getElementById('btnBackToPattern').addEventListener('click', () => {
+  socket.emit('goBack', { from: 'ready' });
+});
+
+// ============================================================
+// MODE SELECT
+// ============================================================
+socket.on('goToModeSelect', ({ players, host }) => {
+  showScreen('modeSelectScreen');
+  const badge = document.getElementById('hostBadgeMode');
+  if (myPlayerId === host) {
+    badge.innerHTML = '<span class="host-badge">&#x1F451; You are the Host</span>';
+    document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('disabled'));
+  } else {
+    badge.innerHTML = '<span class="not-host-msg">Host is selecting the mode...</span>';
+    document.querySelectorAll('.mode-card').forEach(c => c.classList.add('disabled'));
+  }
+});
+
+document.querySelectorAll('.mode-card').forEach(card => {
+  card.addEventListener('click', () => {
+    if (!isHost) return;
+    socket.emit('selectMode', { mode: card.dataset.mode });
+  });
+});
+
+// ============================================================
+// PATTERN SELECT
+// ============================================================
+socket.on('goToPatternSelect', ({ mode, host }) => {
+  showScreen('patternSelectScreen');
+  currentMode = mode;
+  const modeNames = { solo:'Solo', coop:'Co-op', vs:'VS' };
+  document.getElementById('patternSubtitle').textContent = `Mode: ${modeNames[mode]} — Choose a pattern`;
+  const badge = document.getElementById('hostBadgePattern');
+  if (myPlayerId === host) {
+    badge.innerHTML = '<span class="host-badge">&#x1F451; You are the Host</span>';
+    document.querySelectorAll('.pattern-card').forEach(c => c.classList.remove('disabled'));
+  } else {
+    badge.innerHTML = '<span class="not-host-msg">Host is selecting the pattern...</span>';
+    document.querySelectorAll('.pattern-card').forEach(c => c.classList.add('disabled'));
+  }
+});
+
+document.querySelectorAll('.pattern-card').forEach(card => {
+  card.addEventListener('click', () => {
+    if (!isHost) return;
+    socket.emit('selectPattern', { pattern: card.dataset.pattern });
+  });
+});
+
+// ============================================================
+// READY SCREEN (VS)
+// ============================================================
+socket.on('goToReady', ({ players }) => {
+  showScreen('readyScreen');
+  playersInfo = players;
+  const container = document.getElementById('readyPlayers');
+  container.innerHTML = '';
+  players.forEach(p => {
+    const ch = CHARACTERS[p.color];
+    const div = document.createElement('div');
+    div.className = 'ready-player';
+    div.id = `ready-${p.id}`;
+    div.innerHTML = `<div class="rp-char"><img src="${ch.img}" alt="${ch.name}"></div>
+      <div class="rp-name" style="color:${ch.primary}">${p.name}</div>
+      <div class="rp-status" id="readyStatus-${p.id}">Not Ready</div>`;
+    container.appendChild(div);
+  });
+  const btn = document.getElementById('btnReady');
+  btn.disabled = false;
+});
+
+document.getElementById('btnReady').addEventListener('click', () => {
+  socket.emit('confirmReady');
+  document.getElementById('btnReady').disabled = true;
+});
+
+socket.on('playerReady', ({ playerId: pid }) => {
+  const el = document.getElementById(`readyStatus-${pid}`);
+  if (el) { el.textContent = 'Ready!'; el.classList.add('is-ready'); }
+});
+
+// ============================================================
+// COUNTDOWN & GAME
+// ============================================================
+socket.on('countdownStart', ({ duration, players, rows, cols, mode, pattern }) => {
+  playersInfo = players;
+  currentRows = rows; currentCols = cols; currentMode = mode;
+  soloFinished = false;
+
+  document.body.classList.remove('vs-mode');
+  if (mode === 'vs') document.body.classList.add('vs-mode');
+
+  showScreen('gameScreen');
+  setupPlayerPanels(players, mode);
+  buildBoard(rows, cols);
+
+  const modeLabels = { solo:'Solo', coop:'Co-op', vs:'VS' };
+  document.getElementById('gameModeLabel').textContent = `${modeLabels[mode]} — Pattern ${pattern}`;
+
+  document.getElementById('finalCountdown').classList.remove('active');
+  document.getElementById('finalCountdown').style.display = 'none';
+  if (finalCountdownInterval) clearInterval(finalCountdownInterval);
+
+  document.getElementById('soloWaitingOverlay').classList.remove('active');
+  document.getElementById('myPenaltyOverlay').classList.remove('active');
+
+  // Show/hide opponent cursor for co-op
+  const oppCursor = document.getElementById('oppCursor');
+  oppCursor.style.display = mode === 'coop' ? 'block' : 'none';
+  if (mode === 'coop') {
+    oppCursor.style.background = isHost ? '#64E5FF' : '#FF7376';
+  }
+
+  const overlay = document.getElementById('countdownOverlay');
+  const numEl = document.getElementById('countdownNumber');
+  const labelEl = document.getElementById('countdownLabel');
+  overlay.classList.add('active');
+  let remaining = duration;
+  numEl.textContent = remaining; labelEl.textContent = 'Get Ready...';
+  const ci = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) { clearInterval(ci); overlay.classList.remove('active'); return; }
+    numEl.textContent = remaining;
+    numEl.style.animation = 'none'; void numEl.offsetWidth; numEl.style.animation = 'countPop 1s ease';
+    if (remaining <= 3) labelEl.textContent = 'Opening safe area...';
+  }, 1000);
+});
+
+socket.on('autoOpen', ({ cells }) => {
+  cells.forEach(cell => {
+    const td = getTd(cell.row, cell.col);
+    if (!td) return;
+    td.classList.add('auto-opened','revealed');
+    if (cell.number > 0) { td.textContent = cell.number; td.classList.add(`num-${cell.number}`); }
+  });
+});
+
+socket.on('gameStart', () => {
+  gameState = 'playing';
+  startMouseTracking();
+});
+
+// ============================================================
+// BOARD
+// ============================================================
+function buildBoard(rows, cols) {
+  const table = document.getElementById('mineBoard');
+  table.innerHTML = '';
+  const cellSize = Math.floor(660 / cols);
+  const fontSize = Math.max(10, Math.floor(cellSize * 0.55));
+  const flagSize = Math.max(10, Math.floor(cellSize * 0.6));
+
+  for (let r = 0; r < rows; r++) {
+    const tr = document.createElement('tr');
+    for (let c = 0; c < cols; c++) {
+      const td = document.createElement('td');
+      td.dataset.row = r; td.dataset.col = c;
+      td.style.width = cellSize + 'px'; td.style.height = cellSize + 'px';
+      td.style.fontSize = fontSize + 'px'; td.style.lineHeight = cellSize + 'px';
+
+      td.addEventListener('click', () => {
+        if (gameState !== 'playing' || soloFinished) return;
+        socket.emit('dig', { row: r, col: c });
+      });
+      td.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        if (gameState !== 'playing' || soloFinished) return;
+        socket.emit('flag', { row: r, col: c });
+      });
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+
+  const style = document.getElementById('dynamicFlagStyle') || document.createElement('style');
+  style.id = 'dynamicFlagStyle';
+  style.textContent = `#mineBoard td.flagged::after, #mineBoard td.coop-flag-p1::after, #mineBoard td.coop-flag-p2::after { font-size: ${flagSize}px; }`;
+  document.head.appendChild(style);
+}
+
+function getTd(row, col) {
+  return document.querySelector(`#mineBoard td[data-row="${row}"][data-col="${col}"]`);
+}
+
+function setupPlayerPanels(players, mode) {
+  const me = players.find(p => p.id === myPlayerId);
+  const opp = players.find(p => p.id !== myPlayerId);
+
+  if (mode === 'vs') {
+    myColor = me.color;
+    const myChar = CHARACTERS[me.color], oppChar = CHARACTERS[opp.color];
+    document.getElementById('leftChar').innerHTML = `<img src="${myChar.img}" alt="${myChar.name}">`;
+    document.getElementById('leftName').textContent = me.name;
+    document.getElementById('leftName').style.color = myChar.primary;
+    document.getElementById('leftScore').textContent = '0';
+    document.getElementById('leftScore').style.color = myChar.primary;
+    document.getElementById('rightChar').innerHTML = `<img src="${oppChar.img}" alt="${oppChar.name}">`;
+    document.getElementById('rightName').textContent = opp.name;
+    document.getElementById('rightName').style.color = oppChar.primary;
+    document.getElementById('rightScore').textContent = '0';
+    document.getElementById('rightScore').style.color = oppChar.primary;
+  } else {
+    myColor = null;
+    document.getElementById('leftChar').innerHTML = '';
+    document.getElementById('leftName').textContent = me.name;
+    document.getElementById('leftName').style.color = '#eee';
+    document.getElementById('leftScore').textContent = '0';
+    document.getElementById('leftScore').style.color = '#eee';
+    document.getElementById('rightChar').innerHTML = '';
+    document.getElementById('rightName').textContent = mode === 'solo' ? '' : opp.name;
+    document.getElementById('rightName').style.color = '#eee';
+    document.getElementById('rightScore').textContent = mode === 'solo' ? '' : '0';
+    document.getElementById('rightScore').style.color = '#eee';
+  }
+
+  document.getElementById('leftBombs').textContent = '0';
+  document.getElementById('rightBombs').textContent = '0';
+  document.getElementById('leftPenalty').style.display = 'none';
+  document.getElementById('rightPenalty').style.display = 'none';
+
+  // Hide right panel in solo (not needed)
+  document.getElementById('panelRight').style.visibility = mode === 'solo' ? 'hidden' : 'visible';
+}
+
+// ============================================================
+// MOUSE TRACKING
+// ============================================================
+function startMouseTracking() {
+  stopMouseTracking();
+  const boardEl = document.getElementById('mineBoard');
+  let lastX = 0, lastY = 0;
+  boardEl.addEventListener('mousemove', onBoardMouseMove);
+  mouseTrackInterval = setInterval(() => {
+    if (gameState === 'playing' && !soloFinished) {
+      socket.emit('cursorMove', { x: lastX, y: lastY });
+    }
+  }, 50);
+
+  function onBoardMouseMove(e) {
+    const rect = boardEl.getBoundingClientRect();
+    lastX = e.clientX - rect.left;
+    lastY = e.clientY - rect.top;
+  }
+  boardEl._onMouseMove = onBoardMouseMove;
+}
+
+function stopMouseTracking() {
+  if (mouseTrackInterval) { clearInterval(mouseTrackInterval); mouseTrackInterval = null; }
+  const boardEl = document.getElementById('mineBoard');
+  if (boardEl._onMouseMove) { boardEl.removeEventListener('mousemove', boardEl._onMouseMove); boardEl._onMouseMove = null; }
+}
+
+// ============================================================
+// GAME EVENTS
+// ============================================================
+socket.on('cellsRevealed', ({ cells, playerId: pid, scores }) => {
+  const doTint = currentMode === 'vs';
+  const colorKey = doTint ? (scores.find(s => s.id === pid)?.color) : null;
+  const tintClass = colorKey ? CHARACTERS[colorKey].tintClass : '';
+  cells.forEach(cell => {
+    const td = getTd(cell.row, cell.col);
+    if (!td) return;
+    td.classList.add('revealed');
+    td.classList.remove('flagged','coop-flag-p1','coop-flag-p2');
+    if (tintClass) td.classList.add(tintClass);
+    if (cell.number > 0) { td.textContent = cell.number; td.classList.add(`num-${cell.number}`); }
+  });
+  updateScores(scores);
+});
+
+socket.on('bombHit', ({ row, col, playerId: pid, penaltyUntil, scores }) => {
+  const td = getTd(row, col);
+  if (td) {
+    td.classList.add('revealed','bomb-revealed');
+    td.classList.remove('flagged','coop-flag-p1','coop-flag-p2');
+    td.textContent = '\u{1F4A3}';
+    td.style.fontSize = Math.floor(660 / currentCols * 0.65) + 'px';
+    const boom = document.createElement('div'); boom.className = 'explosion';
+    td.style.position = 'relative'; td.appendChild(boom);
+    setTimeout(() => boom.remove(), 600);
+  }
+  updateScores(scores);
+  if (currentMode === 'vs' && penaltyUntil) {
+    if (pid === myPlayerId) showMyPenalty(penaltyUntil);
+    else showOpponentPenalty();
+  }
+});
+
+function showMyPenalty(until) {
+  const overlay = document.getElementById('myPenaltyOverlay');
+  const timerEl = document.getElementById('penaltyCountdown');
+  overlay.classList.add('active');
+  if (penaltyTimer) clearInterval(penaltyTimer);
+  function upd() {
+    const rem = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+    timerEl.textContent = rem;
+    if (rem <= 0) { clearInterval(penaltyTimer); overlay.classList.remove('active'); }
+  }
+  upd(); penaltyTimer = setInterval(upd, 100);
+}
+
+function showOpponentPenalty() {
+  const badge = document.getElementById('rightPenalty');
+  badge.style.display = 'block';
+  setTimeout(() => { badge.style.display = 'none'; }, 5000);
+}
+
+// Flags
+socket.on('flagUpdate', ({ row, col, flagged }) => {
+  const td = getTd(row, col);
+  if (!td) return;
+  td.classList.toggle('flagged', flagged);
+});
+
+socket.on('coopFlagUpdate', ({ row, col, flagged }) => {
+  const td = getTd(row, col);
+  if (!td) return;
+  td.classList.toggle('flagged', flagged);
+});
+
+socket.on('penalized', () => {});
+
+// Co-op cursor
+socket.on('oppCursorMove', ({ x, y }) => {
+  const cursor = document.getElementById('oppCursor');
+  if (cursor.style.display === 'none') return;
+  cursor.style.left = (x - 7) + 'px';
+  cursor.style.top = (y - 7) + 'px';
+});
+
+function updateScores(scores) {
+  if (currentMode === 'solo') {
+    const me = scores.find(s => s.id === myPlayerId);
+    if (me) {
+      document.getElementById('leftScore').textContent = me.cells;
+      document.getElementById('leftBombs').textContent = me.bombs;
+    }
+  } else {
+    const me = scores.find(s => s.id === myPlayerId);
+    const opp = scores.find(s => s.id !== myPlayerId);
+    if (me) { document.getElementById('leftScore').textContent = me.cells; document.getElementById('leftBombs').textContent = me.bombs; }
+    if (opp) { document.getElementById('rightScore').textContent = opp.cells; document.getElementById('rightBombs').textContent = opp.bombs; }
+  }
+}
+
+// Solo: player finished
+socket.on('playerFinished', ({ playerId: pid }) => {
+  if (pid === myPlayerId) {
+    soloFinished = true;
+    document.getElementById('soloWaitingOverlay').classList.add('active');
+  }
+});
+
+// Final countdown (VS)
+socket.on('finalCountdownStart', ({ duration }) => {
+  const bar = document.getElementById('finalCountdown');
+  bar.style.display = 'block';
+  bar.classList.add('active');
+  let remaining = duration;
+  bar.textContent = `⏱ FINAL ${remaining}s`;
+  if (finalCountdownInterval) clearInterval(finalCountdownInterval);
+  finalCountdownInterval = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) { bar.textContent = '⏱ TIME UP!'; clearInterval(finalCountdownInterval); }
+    else bar.textContent = `⏱ FINAL ${remaining}s`;
+  }, 1000);
+});
+
+// ============================================================
+// GAME END
+// ============================================================
+socket.on('gameEnd', ({ results, winner, mode, timeline, gameDuration, totalCells, totalBombs }) => {
+  gameState = 'finished';
+  stopMouseTracking();
+  if (finalCountdownInterval) clearInterval(finalCountdownInterval);
+  showScreen('resultScreen');
+
+  document.getElementById('resultReveal').innerHTML = '';
+  document.getElementById('resultTitle').className = 'result-title-anim';
+  document.getElementById('resultTitle').textContent = '';
+  document.getElementById('resultButtons').classList.remove('show');
+
+  if (mode === 'vs') renderResultVS(results, winner, timeline, gameDuration);
+  else if (mode === 'coop') renderResultCoop(results, timeline, gameDuration, totalCells, totalBombs);
+  else renderResultSolo(results, timeline, gameDuration);
+});
+
+// --- VS Result ---
+function renderResultVS(results, winner, timeline, gameDuration) {
+  const me = results.find(r => r.id === myPlayerId);
+  const opp = results.find(r => r.id !== myPlayerId);
+  const meCh = CHARACTERS[me.color], oppCh = CHARACTERS[opp.color];
+
+  document.getElementById('graphLegend').innerHTML = `
+    <div class="graph-legend-item"><div class="graph-legend-dot" style="background:${meCh.primary}"></div><span>${me.name}</span></div>
+    <div class="graph-legend-item"><div class="graph-legend-dot" style="background:${oppCh.primary}"></div><span>${opp.name}</span></div>`;
+
+  animateGraph(timeline || [], gameDuration || 1, me, opp, meCh.primary, oppCh.primary);
+
+  setTimeout(() => revealCellsVS(me, opp, meCh, oppCh), 5500);
+  setTimeout(() => revealBombs(me, opp, meCh, oppCh), 7200);
+  setTimeout(() => revealFinal(me, opp, meCh, oppCh), 8800);
+  setTimeout(() => revealWinnerVS(winner), 10400);
+  setTimeout(() => showResultButtons(false), 11100);
+}
+
+function revealCellsVS(me, opp, meCh, oppCh) {
+  const rev = document.getElementById('resultReveal');
+  const row = document.createElement('div');
+  row.className = 'reveal-row';
+  row.innerHTML = `
+    <div class="reveal-player"><div class="reveal-char"><img src="${meCh.img}"></div>
+      <div class="reveal-name" style="color:${meCh.primary}">${me.name}</div>
+      <div class="reveal-value" id="cellsUp1" style="color:${meCh.primary}">0</div>
+      <div class="reveal-label">cells</div></div>
+    <div class="reveal-vs">vs</div>
+    <div class="reveal-player"><div class="reveal-char"><img src="${oppCh.img}"></div>
+      <div class="reveal-name" style="color:${oppCh.primary}">${opp.name}</div>
+      <div class="reveal-value" id="cellsUp2" style="color:${oppCh.primary}">0</div>
+      <div class="reveal-label">cells</div></div>`;
+  rev.appendChild(row);
+  requestAnimationFrame(() => row.classList.add('show'));
+  countUp(document.getElementById('cellsUp1'), me.cells, 1000);
+  countUp(document.getElementById('cellsUp2'), opp.cells, 1000);
+}
+
+function revealBombs(me, opp, meCh, oppCh) {
+  const rev = document.getElementById('resultReveal');
+  const row = document.createElement('div');
+  row.className = 'reveal-row';
+  row.innerHTML = `
+    <div class="reveal-player"><div class="reveal-penalty" id="bombsUp1">0</div></div>
+    <div class="reveal-vs">\u{1F4A3}</div>
+    <div class="reveal-player"><div class="reveal-penalty" id="bombsUp2">0</div></div>`;
+  rev.appendChild(row);
+  requestAnimationFrame(() => row.classList.add('show'));
+  countUp(document.getElementById('bombsUp1'), me.bombs * 10, 800, '-', true);
+  countUp(document.getElementById('bombsUp2'), opp.bombs * 10, 800, '-', true);
+}
+
+function revealFinal(me, opp, meCh, oppCh) {
+  const rev = document.getElementById('resultReveal');
+  const row = document.createElement('div');
+  row.className = 'reveal-row';
+  row.innerHTML = `
+    <div class="reveal-player"><div class="reveal-final" id="finalUp1" style="color:${meCh.primary}">0</div></div>
+    <div class="reveal-vs">TOTAL</div>
+    <div class="reveal-player"><div class="reveal-final" id="finalUp2" style="color:${oppCh.primary}">0</div></div>`;
+  rev.appendChild(row);
+  requestAnimationFrame(() => row.classList.add('show'));
+  countUp(document.getElementById('finalUp1'), me.finalScore, 800);
+  countUp(document.getElementById('finalUp2'), opp.finalScore, 800);
+}
+
+function revealWinnerVS(winner) {
+  const titleEl = document.getElementById('resultTitle');
+  if (winner === myPlayerId) { titleEl.textContent = '\u{1F389} Victory!'; titleEl.className = 'result-title-anim win'; }
+  else if (!winner) { titleEl.textContent = '\u{1F91D} Draw!'; titleEl.className = 'result-title-anim draw'; }
+  else { titleEl.textContent = 'Defeat...'; titleEl.className = 'result-title-anim lose'; }
+  requestAnimationFrame(() => titleEl.classList.add('show'));
+}
+
+// --- Co-op Result (single combined graph and stats) ---
+function renderResultCoop(results, timeline, gameDuration, totalCells, totalBombs) {
+  document.getElementById('graphLegend').innerHTML = `
+    <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#4ecdc4"></div><span>Team</span></div>`;
+
+  animateGraphCoop(timeline || [], gameDuration || 1, totalCells, '#4ecdc4');
+
+  const timeStr = formatTime(gameDuration);
+  setTimeout(() => {
+    const rev = document.getElementById('resultReveal');
+    const row = document.createElement('div');
+    row.className = 'reveal-row';
+    row.innerHTML = `
+      <div class="reveal-player">
+        <div class="reveal-label">Time</div>
+        <div class="reveal-value" style="color:#4ecdc4">${timeStr}</div>
+      </div>`;
+    rev.appendChild(row);
+    requestAnimationFrame(() => row.classList.add('show'));
+  }, 5500);
+
+  setTimeout(() => {
+    const rev = document.getElementById('resultReveal');
+    const row = document.createElement('div');
+    row.className = 'reveal-row';
+    row.innerHTML = `
+      <div class="reveal-player">
+        <div class="reveal-penalty">\u{1F4A3} ${totalBombs}</div>
+        <div class="reveal-label">bombs</div>
+      </div>`;
+    rev.appendChild(row);
+    requestAnimationFrame(() => row.classList.add('show'));
+  }, 7200);
+
+  setTimeout(() => {
+    const titleEl = document.getElementById('resultTitle');
+    titleEl.textContent = '\u{1F91D} Clear!';
+    titleEl.className = 'result-title-anim clear';
+    requestAnimationFrame(() => titleEl.classList.add('show'));
+  }, 8800);
+
+  setTimeout(() => showResultButtons(true), 9500);
+}
+
+// --- Solo Result (own data only, no comparison) ---
+function renderResultSolo(results, timeline, gameDuration) {
+  const me = results.find(r => r.id === myPlayerId);
+
+  document.getElementById('graphLegend').innerHTML = `
+    <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#4ecdc4"></div><span>${me.name}</span></div>`;
+
+  animateGraphSolo(timeline || [], gameDuration || 1, me, '#4ecdc4');
+
+  const meTime = formatTime(me.finishTime);
+
+  setTimeout(() => {
+    const rev = document.getElementById('resultReveal');
+    const row = document.createElement('div');
+    row.className = 'reveal-row';
+    row.innerHTML = `
+      <div class="reveal-player">
+        <div class="reveal-name">${me.name}</div>
+        <div class="reveal-value" style="color:#4ecdc4">${meTime}</div>
+        <div class="reveal-label">time</div>
+      </div>`;
+    rev.appendChild(row);
+    requestAnimationFrame(() => row.classList.add('show'));
+  }, 5500);
+
+  setTimeout(() => {
+    const rev = document.getElementById('resultReveal');
+    const row = document.createElement('div');
+    row.className = 'reveal-row';
+    row.innerHTML = `
+      <div class="reveal-player">
+        <div class="reveal-penalty">\u{1F4A3} ${me.bombs}</div>
+        <div class="reveal-label">bombs</div>
+      </div>`;
+    rev.appendChild(row);
+    requestAnimationFrame(() => row.classList.add('show'));
+  }, 7200);
+
+  setTimeout(() => {
+    const titleEl = document.getElementById('resultTitle');
+    titleEl.textContent = 'Complete!';
+    titleEl.className = 'result-title-anim clear';
+    requestAnimationFrame(() => titleEl.classList.add('show'));
+  }, 8800);
+
+  setTimeout(() => showResultButtons(false), 9500);
+}
+
+function showResultButtons(hostOnly) {
+  const btns = document.getElementById('resultButtons');
+  // Log button visibility
+  const btnLog = document.getElementById('btnLog');
+  if (currentMode === 'solo') {
+    btnLog.style.display = '';
+  } else {
+    btnLog.style.display = isHost ? '' : 'none';
+  }
+  btns.classList.add('show');
+}
+
+function formatTime(ms) {
+  if (!ms) return '0:00';
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// ============================================================
+// GRAPH ANIMATION
+// ============================================================
+function animateGraph(timeline, gameDuration, me, opp, meColor, oppColor) {
+  const canvas = document.getElementById('resultGraph');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const pad = { top: 15, right: 15, bottom: 28, left: 45 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  const meData = [{t:0, cells:0}];
+  const oppData = [{t:0, cells:0}];
+  const markers = [];
+  (timeline || []).forEach(e => {
+    const arr = e.pid === me.id ? meData : oppData;
+    arr.push({ t: e.t, cells: e.cells });
+    if (e.type === 'bomb') markers.push({ t: e.t, type: 'bomb', pid: e.pid, cells: e.cells });
+  });
+
+  const maxCells = Math.max(me.cells || 0, opp.cells || 0, 1);
+  const dur = Math.max(gameDuration, 1);
+  const scaleX = t => pad.left + (t / dur) * plotW;
+  const scaleY = c => pad.top + plotH - (c / maxCells) * plotH;
+
+  const ANIM_MS = 5000;
+  const startT = performance.now();
+
+  function drawFrame(now) {
+    const elapsed = now - startT;
+    const progress = Math.min(1, elapsed / ANIM_MS);
+    const curTime = progress * dur;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(15,15,30,0.95)';
+    ctx.fillRect(0, 0, W, H);
+
+    drawGrid(ctx, pad, plotW, plotH, maxCells, dur);
+    drawStepLine(ctx, meData, curTime, scaleX, scaleY, meColor);
+    drawStepLine(ctx, oppData, curTime, scaleX, scaleY, oppColor);
+
+    markers.forEach(m => {
+      if (m.t > curTime) return;
+      const x = scaleX(m.t), y = scaleY(m.cells);
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath(); ctx.arc(x, y - 10, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('\u{1F4A3}', x, y - 4);
+    });
+
+    if (progress < 1) requestAnimationFrame(drawFrame);
+  }
+  requestAnimationFrame(drawFrame);
+}
+
+// Solo graph: single player line only
+function animateGraphSolo(timeline, gameDuration, me, meColor) {
+  const canvas = document.getElementById('resultGraph');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const pad = { top: 15, right: 15, bottom: 28, left: 45 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  const meData = [{t:0, cells:0}];
+  const markers = [];
+  (timeline || []).forEach(e => {
+    if (e.pid !== me.id) return;
+    meData.push({ t: e.t, cells: e.cells });
+    if (e.type === 'bomb') markers.push({ t: e.t, type: 'bomb', cells: e.cells });
+  });
+
+  const maxCells = Math.max(me.cells || 0, 1);
+  const dur = Math.max(gameDuration, 1);
+  const scaleX = t => pad.left + (t / dur) * plotW;
+  const scaleY = c => pad.top + plotH - (c / maxCells) * plotH;
+
+  const ANIM_MS = 5000;
+  const startT = performance.now();
+
+  function drawFrame(now) {
+    const elapsed = now - startT;
+    const progress = Math.min(1, elapsed / ANIM_MS);
+    const curTime = progress * dur;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(15,15,30,0.95)';
+    ctx.fillRect(0, 0, W, H);
+
+    drawGrid(ctx, pad, plotW, plotH, maxCells, dur);
+    drawStepLine(ctx, meData, curTime, scaleX, scaleY, meColor);
+
+    markers.forEach(m => {
+      if (m.t > curTime) return;
+      const x = scaleX(m.t), y = scaleY(m.cells);
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath(); ctx.arc(x, y - 10, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('\u{1F4A3}', x, y - 4);
+    });
+
+    if (progress < 1) requestAnimationFrame(drawFrame);
+  }
+  requestAnimationFrame(drawFrame);
+}
+
+// Co-op graph: single combined line (sum of both players)
+function animateGraphCoop(timeline, gameDuration, totalCells, color) {
+  const canvas = document.getElementById('resultGraph');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const pad = { top: 15, right: 15, bottom: 28, left: 45 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  const combined = [{t:0, cells:0}];
+  const playerCells = {};
+  const markers = [];
+  (timeline || []).forEach(e => {
+    playerCells[e.pid] = e.cells;
+    const total = Object.values(playerCells).reduce((a, b) => a + b, 0);
+    combined.push({ t: e.t, cells: total });
+    if (e.type === 'bomb') markers.push({ t: e.t, type: 'bomb', cells: total });
+  });
+
+  const maxCells = Math.max(totalCells || 0, 1);
+  const dur = Math.max(gameDuration, 1);
+  const scaleX = t => pad.left + (t / dur) * plotW;
+  const scaleY = c => pad.top + plotH - (c / maxCells) * plotH;
+
+  const ANIM_MS = 5000;
+  const startT = performance.now();
+
+  function drawFrame(now) {
+    const elapsed = now - startT;
+    const progress = Math.min(1, elapsed / ANIM_MS);
+    const curTime = progress * dur;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(15,15,30,0.95)';
+    ctx.fillRect(0, 0, W, H);
+
+    drawGrid(ctx, pad, plotW, plotH, maxCells, dur);
+    drawStepLine(ctx, combined, curTime, scaleX, scaleY, color);
+
+    markers.forEach(m => {
+      if (m.t > curTime) return;
+      const x = scaleX(m.t), y = scaleY(m.cells);
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath(); ctx.arc(x, y - 10, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('\u{1F4A3}', x, y - 4);
+    });
+
+    if (progress < 1) requestAnimationFrame(drawFrame);
+  }
+  requestAnimationFrame(drawFrame);
+}
+
+function drawGrid(ctx, pad, plotW, plotH, maxCells, dur) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1;
+  const yStep = niceStep(maxCells, 5);
+  for (let c = 0; c <= maxCells; c += yStep) {
+    const y = pad.top + plotH - (c / maxCells) * plotH;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + plotW, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(Math.round(c), pad.left - 5, y + 3);
+  }
+  const dSec = dur / 1000;
+  const xStep = niceStep(dSec, 6);
+  for (let t = 0; t <= dSec; t += xStep) {
+    const x = pad.left + (t * 1000 / dur) * plotW;
+    ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + plotH); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+    const m = Math.floor(t / 60), s = Math.floor(t % 60);
+    ctx.fillText(m > 0 ? `${m}:${s.toString().padStart(2,'0')}` : `${s}s`, x, pad.top + plotH + 15);
+  }
+}
+
+function niceStep(max, target) {
+  if (max <= 0) return 1;
+  const rough = max / target;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  const n = rough / mag;
+  let step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  return Math.max(1, step * mag);
+}
+
+function drawStepLine(ctx, data, curTime, scaleX, scaleY, color) {
+  ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  let lastCells = 0, started = false;
+  for (let i = 0; i < data.length; i++) {
+    if (data[i].t > curTime) {
+      if (started) ctx.lineTo(scaleX(curTime), scaleY(lastCells));
+      break;
+    }
+    const x = scaleX(data[i].t), y = scaleY(data[i].cells);
+    if (!started) { ctx.moveTo(x, y); started = true; }
+    else { ctx.lineTo(x, scaleY(lastCells)); ctx.lineTo(x, y); }
+    lastCells = data[i].cells;
+    if (i === data.length - 1 && data[i].t <= curTime) ctx.lineTo(scaleX(curTime), scaleY(lastCells));
+  }
+  ctx.stroke();
+}
+
+function countUp(el, target, duration, prefix, isNeg) {
+  if (!el) return;
+  const absTarget = Math.abs(target);
+  if (absTarget === 0) { el.textContent = prefix ? `${prefix}0` : '0'; return; }
+  let current = 0;
+  const step = Math.max(1, Math.floor(absTarget / (duration / 20)));
+  const interval = setInterval(() => {
+    current = Math.min(current + step, absTarget);
+    el.textContent = (prefix || '') + current;
+    if (current >= absTarget) { el.textContent = (prefix || '') + absTarget; clearInterval(interval); }
+  }, 20);
+}
+
+// ============================================================
+// LOG DOWNLOAD
+// ============================================================
+document.getElementById('btnLog').addEventListener('click', () => {
+  socket.emit('requestLog');
+});
+
+socket.on('logData', ({ actionCSV, mouseCSV, mode, pattern }) => {
+  downloadCSV(actionCSV, `action_log_${mode}_${pattern}.csv`);
+  downloadCSV(mouseCSV, `mouse_log_${mode}_${pattern}.csv`);
+});
+
+function downloadCSV(csv, filename) {
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ============================================================
+// RESTART / EXIT
+// ============================================================
+document.getElementById('btnRestart').addEventListener('click', () => { socket.emit('requestRestart'); });
+document.getElementById('btnExit').addEventListener('click', () => {
+  socket.emit('leaveRoom');
+  showScreen('matchingScreen');
+  resetMatchingScreen();
+});
+
+// ============================================================
+// OPPONENT LEFT
+// ============================================================
+socket.on('opponentLeft', () => {
+  alert('Opponent has left the game.');
+  showScreen('matchingScreen');
+  resetMatchingScreen();
+});
+
+function resetMatchingScreen() {
+  document.getElementById('waitingMsg').classList.remove('show');
+  document.getElementById('btnCreate').disabled = false;
+  document.getElementById('btnJoin').disabled = false;
+  document.getElementById('errorMsg').textContent = '';
+  gameState = 'matching'; myPlayerId = null; myColor = null; isHost = false;
+  currentMode = null; soloFinished = false;
+  stopMouseTracking();
+}
+
+document.addEventListener('contextmenu', e => e.preventDefault());
+</script>
+</body>
+</html>
