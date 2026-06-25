@@ -120,6 +120,65 @@ function buildBoardFromGrid(grid) {
   return board;
 }
 
+function generateRandomBoard(rows, cols, mineCount) {
+  const board = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => ({ mine: false, number: 0 }))
+  );
+  let placed = 0;
+  while (placed < mineCount) {
+    const r = Math.floor(Math.random() * rows);
+    const c = Math.floor(Math.random() * cols);
+    if (!board[r][c].mine) { board[r][c].mine = true; placed++; }
+  }
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (board[r][c].mine) continue;
+      let count = 0;
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && board[nr][nc].mine) count++;
+      }
+      board[r][c].number = count;
+    }
+  }
+  return board;
+}
+
+function findAutoOpenPosition(board, rows, cols) {
+  let bestPos = null, bestSize = 0;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    if (!board[r][c].mine && board[r][c].number === 0) {
+      const size = measureCascade(board, rows, cols, r, c);
+      if (size > bestSize) { bestSize = size; bestPos = [r, c]; }
+    }
+  }
+  if (!bestPos) {
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      if (!board[r][c].mine) { bestPos = [r, c]; break; }
+    }
+  }
+  return bestPos;
+}
+
+function measureCascade(board, rows, cols, sr, sc) {
+  const visited = new Set([`${sr},${sc}`]);
+  const queue = [[sr, sc]];
+  while (queue.length > 0) {
+    const [r, c] = queue.shift();
+    if (board[r][c].number === 0) {
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = r + dr, nc = c + dc, key = `${nr},${nc}`;
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited.has(key) && !board[nr][nc].mine) {
+          visited.add(key); queue.push([nr, nc]);
+        }
+      }
+    }
+  }
+  return visited.size;
+}
+
 function performCascade(board, rows, cols, sr, sc) {
   const revealed = new Set([`${sr},${sc}`]);
   const queue = [[sr, sc]];
@@ -246,10 +305,15 @@ function buildCSV(room) {
 function startCountdown(room) {
   room.state = 'countdown';
   const { rows, cols } = room;
-  const boardData = FIXED_BOARDS[room.pattern];
-  room.board = buildBoardFromGrid(boardData.grid);
-
-  const [autoR, autoC] = boardData.autoOpen;
+  let autoR, autoC;
+  if (room.pattern === 'random') {
+    room.board = generateRandomBoard(rows, cols, room.mineCount);
+    [autoR, autoC] = findAutoOpenPosition(room.board, rows, cols);
+  } else {
+    const boardData = FIXED_BOARDS[room.pattern];
+    room.board = buildBoardFromGrid(boardData.grid);
+    [autoR, autoC] = boardData.autoOpen;
+  }
   const autoOpenedCells = performCascade(room.board, rows, cols, autoR, autoC);
   room.autoOpenedCells = autoOpenedCells;
 
@@ -537,7 +601,7 @@ io.on('connection', (socket) => {
     const room = rooms[currentRoom];
     if (!room || room.state !== 'patternSelect') return;
     if (playerId !== room.host) { socket.emit('notHost'); return; }
-    if (!FIXED_BOARDS[pattern]) return;
+    if (pattern !== 'random' && !FIXED_BOARDS[pattern]) return;
     room.pattern = pattern;
 
     if (room.mode === 'vs') {
