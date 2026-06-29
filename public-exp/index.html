@@ -1149,9 +1149,12 @@ document.getElementById('btnLog').addEventListener('click', () => {
   socket.emit('requestLog');
 });
 
-socket.on('logData', ({ actionCSV, mouseCSV, mode, pattern }) => {
-  downloadCSV(actionCSV, `action_log_${mode}_${pattern}.csv`);
-  downloadCSV(mouseCSV, `mouse_log_${mode}_${pattern}.csv`);
+socket.on('logData', ({ actionCSV, mouseCSV, mode, pattern, playerNames, myName }) => {
+  const nameSuffix = (mode === 'solo')
+    ? myName || 'player'
+    : playerNames.join('_');
+  downloadCSV(actionCSV, `action_log_${mode}_${pattern}_${nameSuffix}.csv`);
+  setTimeout(() => downloadCSV(mouseCSV, `mouse_log_${mode}_${pattern}_${nameSuffix}.csv`), 500);
 });
 
 function downloadCSV(csv, filename) {

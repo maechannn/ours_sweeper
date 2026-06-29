@@ -684,7 +684,9 @@ io.on('connection', (socket) => {
     const room = rooms[currentRoom];
     if (!room || room.state !== 'finished') return;
     const { actionCSV, mouseCSV } = buildCSV(room);
-    socket.emit('logData', { actionCSV, mouseCSV, mode: room.mode, pattern: room.pattern });
+    const me = room.players.find(p => p.id === playerId);
+    const playerNames = room.players.map(p => p.name);
+    socket.emit('logData', { actionCSV, mouseCSV, mode: room.mode, pattern: room.pattern, playerNames, myName: me ? me.name : '' });
   });
 
   // --- RESTART ---
