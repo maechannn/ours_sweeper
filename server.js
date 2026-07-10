@@ -808,7 +808,7 @@ server.listen(PORT, '0.0.0.0', () => {
     }
   }
   console.log('='.repeat(50));
-  console.log('  OURS SWEEPER - Server Running!');
+  console.log('  MineSweeTory - Server Running!');
   console.log('='.repeat(50));
   console.log(`  Local:   http://localhost:${PORT}`);
   console.log(`  Network: http://${localIP}:${PORT}`);
