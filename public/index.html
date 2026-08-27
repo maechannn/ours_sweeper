@@ -129,8 +129,9 @@ body{font-family:'Segoe UI','Hiragino Sans',sans-serif;background:#1a1a2e;color:
 /* Board */
 .board-container{display:flex;flex-direction:column;align-items:center;}
 .game-mode-label{font-size:.85rem;font-weight:700;color:#f5a623;text-align:center;margin-bottom:.3rem;letter-spacing:.1em;text-transform:uppercase;min-height:1.2em;}
-.final-countdown-bar{display:none;background:rgba(233,69,96,.15);border:2px solid #e94560;border-radius:10px;padding:.5rem 2rem;margin-bottom:.5rem;font-size:1.2rem;font-weight:800;color:#e94560;text-align:center;min-width:200px;}
-.final-countdown-bar.active{display:block;animation:countdownPulse 1s ease infinite alternate;}
+/* 常にレイアウト上の場所を確保しておき、表示/非表示で盤面がずれないようにする */
+.final-countdown-bar{visibility:hidden;background:rgba(233,69,96,.15);border:2px solid #e94560;border-radius:10px;padding:.5rem 2rem;margin-bottom:.5rem;font-size:1.2rem;font-weight:800;color:#e94560;text-align:center;min-width:200px;}
+.final-countdown-bar.active{visibility:visible;animation:countdownPulse 1s ease infinite alternate;}
 @keyframes countdownPulse{0%{background:rgba(233,69,96,.1);transform:scale(1);}100%{background:rgba(233,69,96,.25);transform:scale(1.03);}}
 
 #mineBoard{border-collapse:collapse;border:3px solid #555;}
@@ -560,6 +561,9 @@ const AUDIO = (() => {
 // 一度にこのマス数以上開いたら dig ではなく digBig を鳴らす
 const CASCADE_SE_THRESHOLD = 10;
 
+// 地雷を踏んだときの行動不能時間（server.js の penalties と揃えること）
+const PENALTY_SECONDS = 5;
+
 // ============================================================
 // SCREEN
 // ============================================================
@@ -778,9 +782,8 @@ socket.on('countdownStart', ({ duration, players, rows, cols, rule, stage }) => 
   document.getElementById('rightItems').style.display = rule === 'itemChaos' ? 'grid' : 'none';
   if (rule === 'itemChaos') { buildItemInventory('leftItems'); buildItemInventory('rightItems'); }
 
-  // Reset final countdown
+  // Reset final countdown（display は触らない：場所は常に確保したままにする）
   document.getElementById('finalCountdown').classList.remove('active');
-  document.getElementById('finalCountdown').style.display = 'none';
   if (finalCountdownInterval) clearInterval(finalCountdownInterval);
 
   const overlay = document.getElementById('countdownOverlay');
@@ -930,7 +933,8 @@ function showMyPenalty(until) {
   overlay.classList.add('active');
   if (penaltyTimer) clearInterval(penaltyTimer);
   function upd() {
-    const rem = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+    // サーバー時刻とのわずかなズレで 6 から始まらないよう、ペナルティ秒数で頭打ちにする
+    const rem = Math.min(PENALTY_SECONDS, Math.max(0, Math.ceil((until - Date.now()) / 1000)));
     timerEl.textContent = rem;
     if (rem <= 0) { clearInterval(penaltyTimer); overlay.classList.remove('active'); }
   }
@@ -1116,7 +1120,6 @@ socket.on('barrierPlaced', ({ playerId: pid, cells }) => {
 // ============================================================
 socket.on('finalCountdownStart', ({ duration }) => {
   const bar = document.getElementById('finalCountdown');
-  bar.style.display = 'block';
   bar.classList.add('active');
   let remaining = duration;
   bar.textContent = `⏱ FINAL ${remaining}s`;
