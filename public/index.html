@@ -385,6 +385,182 @@ let myInventory = [];
 let finalCountdownInterval = null;
 
 // ============================================================
+// AUDIO
+// ============================================================
+// 音源は /public/sounds/ 配下（bgm = ループ再生, se = 単発）。
+// 音量を変えたいときは下の vol を編集する。詳細は sounds/README.md 参照。
+const AUDIO = (() => {
+  const BASE = '/sounds/';
+
+  const BGM_DEFS = {
+    menu:     { src: 'bgm/menu.mp3',     vol: 0.25 },              // ページを開いた瞬間〜Ready を押すまで
+    ingame:   { src: 'bgm/ingame.mp3',   vol: 0.25 },              // ゲーム中
+    drumroll: { src: 'bgm/drumroll.mp3', vol: 1.0, loop: false, fadeOut: 1 }, // リザルト演出の2箇所で頭から鳴らす（ループなし・終わり1秒でフェードアウト）
+    result:   { src: 'bgm/result.mp3',   vol: 1.0  }               // 勝敗のSEが鳴り終わったあと
+  };
+
+  const SFX_DEFS = {
+    tick:   { src: 'se/countdown_tick.mp3', vol: 1.0, pool: 2 }, // 5,4,3,2,1
+    start:  { src: 'se/game_start.mp3',     vol: 1.0, pool: 1 }, // ゲーム開始
+    dig:    { src: 'se/dig.mp3',            vol: 1.0, pool: 6 }, // 自分がマスを開いた
+    digBig: { src: 'se/dig_large.mp3',      vol: 1.0, pool: 2 }, // 一気に開いた（CASCADE_SE_THRESHOLD 以上）
+    boom1:  { src: 'se/explosion_1.mp3',    vol: 0.5, pool: 2 }, // 地雷（音割れ防止のため控えめ）
+    boom2:  { src: 'se/explosion_2.mp3',    vol: 0.5, pool: 2 }, // 地雷（音割れ防止のため控えめ）
+    victory:{ src: 'se/victory.mp3',        vol: 1.0, pool: 1 }, // Victory 表示の瞬間
+    defeat: { src: 'se/defeat.mp3',         vol: 1.0, pool: 1 }  // Defeat 表示の瞬間
+  };
+
+  const bgm = {};
+  for (const [key, def] of Object.entries(BGM_DEFS)) {
+    const el = new Audio(BASE + def.src);
+    el.loop = def.loop !== false; el.volume = def.vol; el.preload = 'auto';
+    el._baseVol = def.vol;            // フェード後に戻す基準音量
+    el._fadeOut = def.fadeOut || 0;   // 曲の終わり何秒でフェードアウトするか
+    bgm[key] = el;
+  }
+
+  const sfx = {};
+  for (const [key, def] of Object.entries(SFX_DEFS)) {
+    const pool = [];
+    for (let i = 0; i < def.pool; i++) {
+      const el = new Audio(BASE + def.src);
+      el.volume = def.vol; el.preload = 'auto';
+      pool.push(el);
+    }
+    sfx[key] = { pool, next: 0 };
+  }
+
+  function allElements() {
+    const list = Object.values(bgm);
+    for (const s of Object.values(sfx)) list.push(...s.pool);
+    return list;
+  }
+
+  // 最初のクリック時に無音で一度再生し、ブラウザの自動再生ブロックを解除しておく
+  function prime() {
+    allElements().forEach(el => {
+      if (el._primed) return;
+      el._primed = true;
+      el.muted = true;
+      const restore = () => {
+        if (!el._wantPlay) { el.pause(); el.currentTime = 0; }
+        el.muted = false;
+      };
+      const p = el.play();
+      if (p && p.then) p.then(restore, restore); else restore();
+    });
+  }
+
+  // 自動再生がブロックされた場合、最初のユーザー操作で鳴らし直す
+  let fallbackArmed = false;
+  function armAutoplayFallback() {
+    if (fallbackArmed) return;
+    fallbackArmed = true;
+    const kick = () => {
+      document.removeEventListener('pointerdown', kick, true);
+      document.removeEventListener('keydown', kick, true);
+      fallbackArmed = false;
+      prime();
+      if (currentBgm && bgm[currentBgm]) {
+        const el = bgm[currentBgm];
+        el.muted = false;
+        el.play().catch(() => {});
+      }
+    };
+    document.addEventListener('pointerdown', kick, true);
+    document.addEventListener('keydown', kick, true);
+  }
+
+  let currentBgm = null;
+
+  function clearFade(el) {
+    if (el._fadeTimer) { clearInterval(el._fadeTimer); el._fadeTimer = null; }
+  }
+
+  // 曲の終わり fadeSec 秒間で音量を 0 まで落とす
+  function startFadeWatch(el, fadeSec) {
+    clearFade(el);
+    el._fadeTimer = setInterval(() => {
+      if (el.paused) { clearFade(el); return; }
+      const d = el.duration;
+      if (!isFinite(d) || d <= 0) return;
+      const remain = d - el.currentTime;
+      el.volume = remain >= fadeSec ? el._baseVol : Math.max(0, el._baseVol * (remain / fadeSec));
+    }, 50);
+  }
+
+  // restart = true なら同じBGMでも頭から鳴らし直す
+  function playBgm(key, restart) {
+    if (currentBgm === key && !restart) return;
+    stopBgm();
+    const el = bgm[key];
+    if (!el) return;
+    currentBgm = key;
+    el._wantPlay = true;
+    el.muted = false;
+    el.volume = el._baseVol;
+    el.currentTime = 0;
+    const p = el.play();
+    if (p && p.catch) p.catch(() => armAutoplayFallback());
+    if (el._fadeOut > 0) startFadeWatch(el, el._fadeOut);
+  }
+
+  function stopBgm() {
+    if (currentBgm && bgm[currentBgm]) {
+      const el = bgm[currentBgm];
+      el._wantPlay = false;
+      clearFade(el);
+      el.pause();
+      el.currentTime = 0;
+      el.volume = el._baseVol;
+    }
+    currentBgm = null;
+  }
+
+  function play(key) {
+    const s = sfx[key];
+    if (!s) return null;
+    const el = s.pool[s.next];
+    s.next = (s.next + 1) % s.pool.length;
+    el.muted = false;
+    el.currentTime = 0;
+    el.play().catch(() => {});
+    return el;
+  }
+
+  function playRandom(keys) { play(keys[Math.floor(Math.random() * keys.length)]); }
+
+  // SEを鳴らし、鳴り終わったら onEnded を呼ぶ（再生できなかった場合は即座に呼ぶ）
+  function playThen(key, onEnded) {
+    const el = play(key);
+    if (!el) { onEnded(); return; }
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      el.removeEventListener('ended', finish);
+      onEnded();
+    };
+    el.addEventListener('ended', finish);
+    // 再生がブロックされた等で ended が来ない場合の保険
+    setTimeout(() => { if (el.paused && el.currentTime === 0) finish(); }, 400);
+  }
+
+  // 現在のBGMの状態を返す（デバッグ用）
+  function currentBgmKey() { return currentBgm; }
+  function bgmState() {
+    const el = currentBgm && bgm[currentBgm];
+    if (!el) return { key: null };
+    return { key: currentBgm, volume: el.volume, currentTime: el.currentTime, paused: el.paused };
+  }
+
+  return { prime, play, playRandom, playThen, playBgm, stopBgm, currentBgmKey, bgmState };
+})();
+
+// 一度にこのマス数以上開いたら dig ではなく digBig を鳴らす
+const CASCADE_SE_THRESHOLD = 10;
+
+// ============================================================
 // SCREEN
 // ============================================================
 function showScreen(id) {
@@ -399,6 +575,7 @@ const roomCodeInput = document.getElementById('roomCodeInput');
 roomCodeInput.addEventListener('input', e => { e.target.value = e.target.value.replace(/[^0-9]/g,'').slice(0,3); });
 
 document.getElementById('btnCreate').addEventListener('click', () => {
+  AUDIO.prime();
   const name = document.getElementById('playerNameInput').value.trim() || 'Player';
   const code = roomCodeInput.value.trim();
   if (code.length !== 3) { document.getElementById('errorMsg').textContent = 'Enter a 3-digit code.'; return; }
@@ -407,6 +584,7 @@ document.getElementById('btnCreate').addEventListener('click', () => {
 });
 
 document.getElementById('btnJoin').addEventListener('click', () => {
+  AUDIO.prime();
   const name = document.getElementById('playerNameInput').value.trim() || 'Player';
   const code = roomCodeInput.value.trim();
   if (code.length !== 3) { document.getElementById('errorMsg').textContent = 'Enter a 3-digit code.'; return; }
@@ -416,6 +594,7 @@ document.getElementById('btnJoin').addEventListener('click', () => {
 
 socket.on('roomCreated', ({ code, playerId, isHost: h }) => {
   myPlayerId = playerId; isHost = h;
+  AUDIO.playBgm('menu');
   document.getElementById('waitingMsg').classList.add('show');
   document.getElementById('roomCodeDisplay').textContent = `Room Code: ${code}`;
   document.getElementById('btnCreate').disabled = true;
@@ -443,6 +622,7 @@ document.getElementById('btnBackToStage').addEventListener('click', () => {
 // RULE SELECT
 // ============================================================
 socket.on('goToRuleSelect', ({ players, host }) => {
+  AUDIO.playBgm('menu'); // 初参加時と Play Again 時の両方をここで拾う
   showScreen('ruleSelectScreen');
   const badge = document.getElementById('hostBadgeRule');
   if (myPlayerId === host) {
@@ -466,6 +646,7 @@ document.querySelectorAll('.rule-card').forEach(card => {
 // STAGE SELECT
 // ============================================================
 socket.on('goToStageSelect', ({ rule, host }) => {
+  AUDIO.playBgm('menu'); // Ready 後に戻ってきた場合の復帰用（既に鳴っていれば何もしない）
   showScreen('stageSelectScreen');
   currentRule = rule;
   const badge = document.getElementById('hostBadgeStage');
@@ -520,6 +701,7 @@ const btnConfirm = document.getElementById('btnConfirm');
 const waitingOpponent = document.getElementById('waitingOpponent');
 
 socket.on('goToColorSelect', ({ players }) => {
+  AUDIO.playBgm('menu');
   showScreen('colorSelectScreen');
   selectedColor = null; confirmed = false;
   btnConfirm.classList.remove('enabled');
@@ -566,6 +748,7 @@ socket.on('colorTaken', () => { selectedColor = null; });
 btnConfirm.addEventListener('click', () => {
   if (!selectedColor || confirmed) return;
   confirmed = true;
+  AUDIO.stopBgm(); // メニューBGMは Ready を押すまで
   socket.emit('confirmColor');
   btnConfirm.style.display = 'none';
   waitingOpponent.style.display = 'block';
@@ -606,10 +789,12 @@ socket.on('countdownStart', ({ duration, players, rows, cols, rule, stage }) => 
   overlay.classList.add('active');
   let remaining = duration;
   numEl.textContent = remaining; labelEl.textContent = 'Get Ready...';
+  AUDIO.play('tick'); // 「5」が出た瞬間
   const ci = setInterval(() => {
     remaining--;
     if (remaining <= 0) { clearInterval(ci); overlay.classList.remove('active'); return; }
     numEl.textContent = remaining;
+    AUDIO.play('tick'); // 4,3,2,1
     numEl.style.animation = 'none'; void numEl.offsetWidth; numEl.style.animation = 'countPop 1s ease';
     if (remaining <= 3) labelEl.textContent = 'Opening safe area...';
   }, 1000);
@@ -624,7 +809,11 @@ socket.on('autoOpen', ({ cells }) => {
   });
 });
 
-socket.on('gameStart', () => { gameState = 'playing'; });
+socket.on('gameStart', () => {
+  gameState = 'playing';
+  AUDIO.play('start');
+  AUDIO.playBgm('ingame');
+});
 
 // ============================================================
 // BOARD
@@ -702,6 +891,10 @@ function setupPlayerPanels(players) {
 // GAME EVENTS
 // ============================================================
 socket.on('cellsRevealed', ({ cells, playerId: pid, scores }) => {
+  // 自分が開いた音だけ鳴らす（連鎖で複数マス開いても1回。一気に開いたら専用の音）
+  if (pid === myPlayerId && cells.length > 0) {
+    AUDIO.play(cells.length >= CASCADE_SE_THRESHOLD ? 'digBig' : 'dig');
+  }
   const colorKey = scores.find(s => s.id === pid)?.color;
   const tintClass = colorKey ? CHARACTERS[colorKey].tintClass : '';
   cells.forEach(cell => {
@@ -715,6 +908,7 @@ socket.on('cellsRevealed', ({ cells, playerId: pid, scores }) => {
 });
 
 socket.on('bombHit', ({ row, col, playerId: pid, penaltyUntil, scores, deathmatch }) => {
+  AUDIO.playRandom(['boom1', 'boom2']); // 自分・相手どちらの被弾でも鳴らす
   const td = getTd(row, col);
   if (td) {
     td.classList.add('revealed','bomb-revealed'); td.classList.remove('flagged','yellow-flagged');
@@ -944,6 +1138,7 @@ socket.on('finalCountdownStart', ({ duration }) => {
 socket.on('gameEnd', ({ results, winner, rule, deathBy, timeline, gameDuration }) => {
   gameState = 'finished';
   if (finalCountdownInterval) clearInterval(finalCountdownInterval);
+  AUDIO.playBgm('drumroll'); // グラフ〜スコア開示の演出中
   showScreen('resultScreen');
 
   // Sort results: me first
@@ -1111,6 +1306,7 @@ function drawStepLine(ctx, data, curTime, scaleX, scaleY, color) {
 
 // --- Reveal Steps ---
 function revealCells(me, opp, meCh, oppCh) {
+  AUDIO.playBgm('drumroll', true); // ドラムロール2回目（最後）：スコアの表示開始
   const rev = document.getElementById('resultReveal');
   const row = document.createElement('div');
   row.className = 'reveal-row';
@@ -1173,6 +1369,11 @@ function revealDeath(me, opp, meCh, oppCh, deathBy) {
 }
 
 function revealWinner(winner, rule) {
+  // 勝敗が出た瞬間：ドラムロールを止めて勝敗SE → 鳴り終わったらリザルトBGM
+  AUDIO.stopBgm();
+  if (winner === myPlayerId)      AUDIO.playThen('victory', () => AUDIO.playBgm('result'));
+  else if (winner)                AUDIO.playThen('defeat',  () => AUDIO.playBgm('result'));
+  else                            AUDIO.playBgm('result'); // 引き分けは専用SEなし
   const titleEl = document.getElementById('resultTitle');
   if (winner === myPlayerId) { titleEl.textContent = '🎉 Victory!'; titleEl.className = 'result-title-anim win'; }
   else if (!winner) { titleEl.textContent = '🤝 Draw!'; titleEl.className = 'result-title-anim draw'; }
@@ -1214,6 +1415,8 @@ socket.on('opponentLeft', () => {
 });
 
 function resetMatchingScreen() {
+  AUDIO.playBgm('menu'); // マッチング画面に戻ったらメニューBGMへ
+
   document.getElementById('waitingMsg').classList.remove('show');
   document.getElementById('btnCreate').disabled = false;
   document.getElementById('btnJoin').disabled = false;
@@ -1224,6 +1427,11 @@ function resetMatchingScreen() {
 }
 
 document.addEventListener('contextmenu', e => e.preventDefault());
+
+// ページを開いた瞬間からメニューBGMを鳴らす
+// （ブラウザに自動再生を拒否された場合は、最初のクリック／キー入力で自動的に鳴り出す）
+AUDIO.playBgm('menu');
+AUDIO.prime();
 </script>
 </body>
 </html>
