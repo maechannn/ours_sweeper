@@ -62,6 +62,10 @@ body{font-family:'Segoe UI','Hiragino Sans',sans-serif;background:#1a1a2e;color:
 /* デモモード切り替えボタン（画面右上）。ホストにだけ表示する */
 .btn-mode-switch{background:rgba(255,255,255,.06);color:#e8e8f0;padding:.7rem 1.4rem;border:1px solid rgba(255,255,255,.3);border-radius:10px;font-size:1.15rem;font-weight:600;cursor:pointer;transition:all .2s;position:absolute;top:2rem;right:2rem;display:none;}
 .btn-mode-switch:hover{background:rgba(255,255,255,.18);color:#fff;transform:translateX(2px);}
+/* 最初のメニュー画面からリプレイを開くボタン（左上） */
+.btn-replay-link{background:rgba(255,255,255,.06);color:#e8e8f0;padding:.7rem 1.4rem;border:1px solid rgba(255,255,255,.3);border-radius:10px;font-size:1.05rem;font-weight:600;cursor:pointer;transition:all .2s;position:absolute;top:2rem;left:2rem;}
+.btn-replay-link:hover{background:rgba(255,255,255,.18);color:#fff;transform:translateX(-2px);}
+body.replay-mode .btn-replay-link{display:none;}
 /* Stage D はデモモードのときだけ出す */
 .stage-card[data-demo-only]{display:none;}
 body.demo-mode .stage-card[data-demo-only]{display:flex;}
@@ -297,6 +301,7 @@ body.replay-mode #mineBoard td.flag-p1.flag-p2::before{ left:70%; }
 
 <!-- MATCHING -->
 <div id="matchingScreen" class="screen active">
+  <button class="btn-replay-link" id="btnReplayTop">▶ リプレイ</button>
   <div class="game-title">MineSweeTory</div>
   <div class="game-subtitle">COMPETITIVE MINESWEEPER</div>
   <div class="match-box">
@@ -329,7 +334,7 @@ body.replay-mode #mineBoard td.flag-p1.flag-p2::before{ left:70%; }
 <!-- STAGE SELECT -->
 <div id="stageSelectScreen" class="screen">
   <button class="btn-back" id="btnBackToRule">← Back</button>
-  <button class="btn-mode-switch" id="btnToSpecial">→special</button>
+  <button class="btn-mode-switch" id="btnToExt">→ext</button>
   <div class="select-title">Select Stage</div>
   <div class="select-subtitle" id="stageSubtitle">Choose a board size</div>
   <div id="hostBadgeStage"></div>
@@ -719,7 +724,7 @@ socket.on('demoMode', ({ on }) => {
   document.body.classList.toggle('demo-mode', on);
 });
 document.getElementById('btnToDemo').addEventListener('click', () => { socket.emit('toggleDemo'); });
-document.getElementById('btnToSpecial').addEventListener('click', () => { socket.emit('toggleDemo'); });
+document.getElementById('btnToExt').addEventListener('click', () => { socket.emit('toggleDemo'); });
 
 // ============================================================
 // BACK BUTTONS
@@ -766,7 +771,7 @@ socket.on('goToStageSelect', ({ rule, host }) => {
   AUDIO.playBgm('menu'); // Ready 後に戻ってきた場合の復帰用（既に鳴っていれば何もしない）
   showScreen('stageSelectScreen');
   currentRule = rule;
-  document.getElementById('btnToSpecial').style.display = (demoMode && myPlayerId === host) ? 'block' : 'none';
+  document.getElementById('btnToExt').style.display = (demoMode && myPlayerId === host) ? 'block' : 'none';
   const badge = document.getElementById('hostBadgeStage');
   if (myPlayerId === host) {
     badge.innerHTML = '<span class="host-badge">👑 You are the Host</span>';
@@ -1553,6 +1558,8 @@ function countUp(el, target, duration, prefix, isNeg) {
 
 document.getElementById('btnRestart').addEventListener('click', () => { socket.emit('requestRestart'); });
 document.getElementById('btnReplay').addEventListener('click', () => { window.open('/replay', '_blank'); });
+// 最初のメニュー画面からも開けるようにする（対戦を終える前でも押せる）
+document.getElementById('btnReplayTop').addEventListener('click', () => { window.open('/replay', '_blank'); });
 
 let replayMuted = false;
 document.getElementById('btnMute').addEventListener('click', () => {
