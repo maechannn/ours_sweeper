@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -13,13 +14,105 @@ process.on('unhandledRejection', (err) => console.error('Unhandled Rejection:', 
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ============================================================
+// REPLAY
+// ============================================================
+// サーバーが送信した socket イベントを時刻付きで記録し、直近の完走試合を
+// /api/replay/latest で配信する。再生側 (public/replay.js) が同じイベントを
+// 同じ間隔で本体のハンドラに流し込むことで対戦を完全に再現する。
+const REPLAY_DIR = path.join(__dirname, 'replays');
+const REPLAY_FILE = path.join(REPLAY_DIR, 'latest.json');
+let latestReplay = null;
+
+try {
+  if (fs.existsSync(REPLAY_FILE)) {
+    latestReplay = JSON.parse(fs.readFileSync(REPLAY_FILE, 'utf8'));
+    console.log(`Loaded stored replay (${latestReplay.events.length} events)`);
+  }
+} catch (err) { console.error('Failed to load stored replay:', err.message); }
+
+app.get('/replay', (req, res) => res.redirect('/index.html?replay=1'));
+app.get('/api/replay/latest', (req, res) => {
+  if (!latestReplay) { res.status(404).json({ error: 'No replay available yet.' }); return; }
+  res.json(latestReplay);
+});
+
+function startRecording(room) {
+  room.rec = { startedAt: Date.now(), events: [] };
+}
+
+// pid: 個人宛イベントの宛先プレイヤー（全体配信なら null）
+function recEvent(room, event, payload, pid) {
+  if (!room.rec) return;
+  room.rec.events.push({
+    t: Date.now() - room.rec.startedAt,
+    event,
+    pid: pid || null,
+    // inventory 等は後から splice で破壊的に変更されるため必ず複製する
+    payload: payload === undefined ? null : structuredClone(payload)
+  });
+}
+
+// 全体配信 + 記録
+function bcast(room, event, payload) {
+  if (payload === undefined) io.to(room.code).emit(event);
+  else io.to(room.code).emit(event, payload);
+  recEvent(room, event, payload, null);
+}
+
+// 個人宛 + 記録（宛先を pid として残す）
+function toPlayer(room, pid, event, payload) {
+  const sock = getSocketForPlayer(room, pid);
+  if (sock) sock.emit(event, payload);
+  recEvent(room, event, payload, pid);
+}
+
+// 完走した試合だけを公開する。途中切断した room は破棄されるので記録も消える
+function finalizeReplay(room) {
+  if (!room.rec || room.rec.events.length === 0) return;
+  latestReplay = {
+    id: Date.now(),
+    recordedAt: new Date().toISOString(),
+    rule: room.rule, stage: room.stage,
+    rows: room.rows, cols: room.cols,
+    players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color })),
+    events: room.rec.events
+  };
+  room.rec = null;
+  try {
+    fs.mkdirSync(REPLAY_DIR, { recursive: true });
+    fs.writeFileSync(REPLAY_FILE, JSON.stringify(latestReplay));
+  } catch (err) { console.error('Failed to save replay:', err.message); }
+  io.emit('replayReady', { id: latestReplay.id });
+  console.log(`Replay saved (${latestReplay.events.length} events)`);
+}
+
+// ============================================================
 // CONFIGS
 // ============================================================
 const STAGES = {
   A: { rows: 30, cols: 30, mines: 150 },
   B: { rows: 25, cols: 25, mines: 100 },
-  C: { rows: 20, cols: 20, mines: 60 }
+  C: { rows: 20, cols: 20, mines: 60 },
+  // デモ専用。15x15=225マスに対し34個 = 15.1%（Stage C の 15% と同等の密度）
+  D: { rows: 15, cols: 15, mines: 34 }
 };
+
+// 展示用デモモード。サーバー全体で保持し、→special が押されるまで継続する
+let demoMode = false;
+
+// デモモードではルール選択を飛ばし、Standard 固定でステージ選択から始める
+function enterFirstMenu(room, code) {
+  if (demoMode) {
+    room.rule = 'standard';
+    room.state = 'stageSelect';
+    io.to(code).emit('goToStageSelect', { rule: 'standard', host: room.host });
+  } else {
+    room.rule = null;
+    room.state = 'ruleSelect';
+    const playerInfos = room.players.map(p => ({ id: p.id, name: p.name }));
+    io.to(code).emit('goToRuleSelect', { players: playerInfos, host: room.host });
+  }
+}
 
 const ITEM_PROBS = [
   { type: 'mine_detector', weight: 60 },
@@ -73,6 +166,8 @@ function createRoom(code) {
     finalCountdownActive: false,
     finalCountdownTimer: null,
     finalCountdownEnd: null,
+    // Replay recording (startCountdown で開始し gameEnd で確定)
+    rec: null,
   };
 }
 
@@ -227,8 +322,7 @@ function distributeItems(room) {
     if (room.items[p.id].length >= 9) return; // inventory full, skip
     const item = randomItem();
     room.items[p.id].push(item);
-    const sock = getSocketForPlayer(room, p.id);
-    if (sock) sock.emit('itemReceived', { item, inventory: room.items[p.id] });
+    toPlayer(room, p.id, 'itemReceived', { item, inventory: room.items[p.id] });
     // Notify opponent of this player's updated inventory
     const opp = getOpponent(room, p.id);
     if (opp) {
@@ -255,7 +349,7 @@ function checkFinalCountdown(room) {
   if (unrevealedSafe <= 10) {
     room.finalCountdownActive = true;
     room.finalCountdownEnd = Date.now() + 30000;
-    io.to(room.code).emit('finalCountdownStart', { duration: 30 });
+    bcast(room, 'finalCountdownStart', { duration: 30 });
     room.finalCountdownTimer = setTimeout(() => {
       if (room.state === 'playing') endGame(room);
     }, 30000);
@@ -300,7 +394,8 @@ function endGame(room) {
   if (results[0].finalScore > results[1].finalScore) winner = results[0].id;
   else if (results[0].finalScore < results[1].finalScore) winner = results[1].id;
 
-  io.to(room.code).emit('gameEnd', { results, winner, rule: room.rule, timeline: room.timeline, gameDuration: Date.now() - (room.gameStartTime || Date.now()) });
+  bcast(room, 'gameEnd', { results, winner, rule: room.rule, timeline: room.timeline, gameDuration: Date.now() - (room.gameStartTime || Date.now()) });
+  finalizeReplay(room);
 }
 
 function endGameDeathmatch(room, loserId) {
@@ -314,7 +409,8 @@ function endGameDeathmatch(room, loserId) {
     return { id: p.id, name: p.name, color: p.color, cells: s.cells, bombs: s.bombs, penalty: 0, finalScore: p.id === loserId ? -1 : s.cells };
   });
 
-  io.to(room.code).emit('gameEnd', { results, winner: winnerId, rule: 'deathmatch', deathBy: loserId, timeline: room.timeline, gameDuration: Date.now() - (room.gameStartTime || Date.now()) });
+  bcast(room, 'gameEnd', { results, winner: winnerId, rule: 'deathmatch', deathBy: loserId, timeline: room.timeline, gameDuration: Date.now() - (room.gameStartTime || Date.now()) });
+  finalizeReplay(room);
 }
 
 // ============================================================
@@ -345,16 +441,17 @@ function startCountdown(room) {
 
   const playerInfos = room.players.map(p => ({ id: p.id, name: p.name, color: p.color }));
 
-  io.to(room.code).emit('countdownStart', {
+  startRecording(room); // ここが replay の t=0
+  bcast(room, 'countdownStart', {
     duration: 5, players: playerInfos,
     rows, cols, rule: room.rule, stage: room.stage
   });
 
-  setTimeout(() => { io.to(room.code).emit('autoOpen', { cells: autoOpenData }); }, 2000);
+  setTimeout(() => { bcast(room, 'autoOpen', { cells: autoOpenData }); }, 2000);
   setTimeout(() => {
     room.state = 'playing';
     room.gameStartTime = Date.now();
-    io.to(room.code).emit('gameStart');
+    bcast(room, 'gameStart');
     startItemTimer(room);
   }, 5000);
 }
@@ -370,6 +467,7 @@ function resetRoom(room) {
   room.autoOpenedCells = null; room.revealedCount = 0;
   room.items = {}; room.itemInterval = 60;
   room.timeline = []; room.gameStartTime = null;
+  room.rec = null;
   stopItemTimer(room);
   room.barriers = {}; room.yellowFlags = {};
   room.finalCountdownActive = false;
@@ -390,6 +488,7 @@ function resetRoom(room) {
 // ============================================================
 io.on('connection', (socket) => {
   console.log(`Connected: ${socket.id}`);
+  socket.emit('demoMode', { on: demoMode });
   let currentRoom = null;
   let playerId = null;
 
@@ -430,9 +529,7 @@ io.on('connection', (socket) => {
     socket.join(code);
     socket.emit('roomJoined', { code, playerId, isHost: false });
 
-    room.state = 'ruleSelect';
-    const playerInfos = room.players.map(p => ({ id: p.id, name: p.name }));
-    io.to(code).emit('goToRuleSelect', { players: playerInfos, host: room.host });
+    enterFirstMenu(room, code);
     console.log(`${playerName} joined room ${code}`);
   });
 
@@ -448,6 +545,13 @@ io.on('connection', (socket) => {
       return;
     }
     if (from === 'stageSelect' && room.state === 'stageSelect') {
+      if (demoMode) {
+        // デモモードではステージ選択が最初の画面なので、戻る = 退室
+        io.to(currentRoom).emit('opponentLeft');
+        delete rooms[currentRoom];
+        currentRoom = null; playerId = null;
+        return;
+      }
       room.state = 'ruleSelect';
       room.rule = null;
       const playerInfos = room.players.map(p => ({ id: p.id, name: p.name }));
@@ -480,6 +584,7 @@ io.on('connection', (socket) => {
     if (!room || room.state !== 'stageSelect') return;
     if (playerId !== room.host) { socket.emit('notHost'); return; }
     if (!STAGES[stage]) return;
+    if (stage === 'D' && !demoMode) return;   // Stage D はデモモード専用
     room.stage = stage;
     const cfg = STAGES[stage];
     room.rows = cfg.rows; room.cols = cfg.cols; room.mineCount = cfg.mines;
@@ -491,6 +596,18 @@ io.on('connection', (socket) => {
     room.state = 'colorSelect';
     const playerInfos = room.players.map(p => ({ id: p.id, name: p.name }));
     io.to(currentRoom).emit('goToColorSelect', { players: playerInfos });
+  });
+
+  // --- DEMO MODE TOGGLE (host only) ---
+  socket.on('toggleDemo', () => {
+    const room = rooms[currentRoom];
+    if (!room) return;
+    if (playerId !== room.host) { socket.emit('notHost'); return; }
+    if (room.state !== 'ruleSelect' && room.state !== 'stageSelect') return;
+    demoMode = !demoMode;
+    io.emit('demoMode', { on: demoMode });   // 全クライアントへ（UIの出し分け用）
+    console.log(`Demo mode: ${demoMode ? 'ON' : 'OFF'}`);
+    enterFirstMenu(room, currentRoom);
   });
 
   // --- COLOR SELECT ---
@@ -560,7 +677,7 @@ io.on('connection', (socket) => {
           room.bombsRevealed[key] = true;
           room.revealedBy[row][col] = '__bomb__';
           room.revealedCount++;
-          io.to(currentRoom).emit('bombHit', {
+          bcast(room, 'bombHit', {
             row, col, playerId, penaltyUntil: 0, scores: getScores(room), deathmatch: true
           });
           recordTimeline(room, playerId, 'bomb');
@@ -573,7 +690,7 @@ io.on('connection', (socket) => {
         room.revealedBy[row][col] = '__bomb__';
         room.revealedCount++;
         room.penalties[playerId] = { until: Date.now() + 5000 };
-        io.to(currentRoom).emit('bombHit', {
+        bcast(room, 'bombHit', {
           row, col, playerId,
           penaltyUntil: room.penalties[playerId].until,
           scores: getScores(room)
@@ -596,14 +713,14 @@ io.on('connection', (socket) => {
             }
           }
           if (newlyRevealed.length > 0) {
-            io.to(currentRoom).emit('cellsRevealed', { cells: newlyRevealed, playerId, scores: getScores(room) });
+            bcast(room, 'cellsRevealed', { cells: newlyRevealed, playerId, scores: getScores(room) });
             recordTimeline(room, playerId, 'dig');
           }
         } else {
           room.revealedBy[row][col] = playerId;
           room.scores[playerId].cells++;
           room.revealedCount++;
-          io.to(currentRoom).emit('cellsRevealed', {
+          bcast(room, 'cellsRevealed', {
             cells: [{ row, col, number: cell.number }], playerId, scores: getScores(room)
           });
           recordTimeline(room, playerId, 'dig');
@@ -630,8 +747,8 @@ io.on('connection', (socket) => {
       if (room.yellowFlags[playerId] && room.yellowFlags[playerId].has(key)) return;
 
       const flags = room.flagsByPlayer[playerId];
-      if (flags.has(key)) { flags.delete(key); socket.emit('flagUpdate', { row, col, flagged: false }); }
-      else { flags.add(key); socket.emit('flagUpdate', { row, col, flagged: true }); }
+      if (flags.has(key)) { flags.delete(key); toPlayer(room, playerId, 'flagUpdate', { row, col, flagged: false }); }
+      else { flags.add(key); toPlayer(room, playerId, 'flagUpdate', { row, col, flagged: true }); }
     } catch (err) { console.error('Error in flag:', err); }
   });
 
@@ -665,13 +782,11 @@ io.on('connection', (socket) => {
           toRemove.push({ row: fr, col: fc });
         }
         inv.splice(idx, 1);
-        socket.emit('itemUsed', { itemType, inventory: inv });
+        toPlayer(room, playerId, 'itemUsed', { itemType, inventory: inv });
         recordTimeline(room, playerId, 'item', 'flag_thief');
         const oppSock = getSocketForPlayer(room, oppId);
-        if (oppSock) {
-          oppSock.emit('oppItemUsed', { inventory: inv });
-          oppSock.emit('flagsStolen', { flags: toRemove });
-        }
+        if (oppSock) oppSock.emit('oppItemUsed', { inventory: inv });
+        toPlayer(room, oppId, 'flagsStolen', { flags: toRemove });
         return;
       }
 
@@ -690,8 +805,8 @@ io.on('connection', (socket) => {
         if (cell.mine) {
           // Place yellow flag
           room.yellowFlags[playerId].add(key);
-          socket.emit('yellowFlagPlaced', { row, col });
-          socket.emit('itemUsed', { itemType, inventory: inv });
+          toPlayer(room, playerId, 'yellowFlagPlaced', { row, col });
+          toPlayer(room, playerId, 'itemUsed', { itemType, inventory: inv });
           recordTimeline(room, playerId, 'item', 'mine_detector');
           notifyOppItemUsed(room, playerId, inv);
         } else {
@@ -699,10 +814,10 @@ io.on('connection', (socket) => {
           room.revealedBy[row][col] = playerId;
           room.scores[playerId].cells++;
           room.revealedCount++;
-          io.to(currentRoom).emit('cellsRevealed', {
+          bcast(room, 'cellsRevealed', {
             cells: [{ row, col, number: cell.number }], playerId, scores: getScores(room)
           });
-          socket.emit('itemUsed', { itemType, inventory: inv });
+          toPlayer(room, playerId, 'itemUsed', { itemType, inventory: inv });
           recordTimeline(room, playerId, 'item', 'mine_detector');
           notifyOppItemUsed(room, playerId, inv);
           checkGameEnd(room);
@@ -732,11 +847,11 @@ io.on('connection', (socket) => {
             revealed.push({ row: a.r, col: a.c, number: cell.number });
           }
         }
-        if (yellows.length > 0) socket.emit('yellowFlagsPlaced', { flags: yellows });
+        if (yellows.length > 0) toPlayer(room, playerId, 'yellowFlagsPlaced', { flags: yellows });
         if (revealed.length > 0) {
-          io.to(currentRoom).emit('cellsRevealed', { cells: revealed, playerId, scores: getScores(room) });
+          bcast(room, 'cellsRevealed', { cells: revealed, playerId, scores: getScores(room) });
         }
-        socket.emit('itemUsed', { itemType, inventory: inv });
+        toPlayer(room, playerId, 'itemUsed', { itemType, inventory: inv });
         recordTimeline(room, playerId, 'item', 'mine_detector_ex');
         notifyOppItemUsed(room, playerId, inv);
         checkGameEnd(room);
@@ -755,10 +870,10 @@ io.on('connection', (socket) => {
           room.barriers[playerId].add(a.key);
           barrierCells.push({ row: a.r, col: a.c });
         }
-        socket.emit('itemUsed', { itemType, inventory: inv });
+        toPlayer(room, playerId, 'itemUsed', { itemType, inventory: inv });
         recordTimeline(room, playerId, 'item', 'barrier');
         notifyOppItemUsed(room, playerId, inv);
-        io.to(currentRoom).emit('barrierPlaced', {
+        bcast(room, 'barrierPlaced', {
           playerId, cells: barrierCells, center: { row, col }
         });
       }
@@ -770,9 +885,7 @@ io.on('connection', (socket) => {
     const room = rooms[currentRoom];
     if (!room || room.state !== 'finished') return;
     resetRoom(room);
-    room.state = 'ruleSelect';
-    const playerInfos = room.players.map(p => ({ id: p.id, name: p.name }));
-    io.to(currentRoom).emit('goToRuleSelect', { players: playerInfos, host: room.host });
+    enterFirstMenu(room, currentRoom);
   });
 
   socket.on('leaveRoom', () => handleDisconnect());
@@ -785,6 +898,8 @@ io.on('connection', (socket) => {
   function handleDisconnect() {
     if (currentRoom && rooms[currentRoom]) {
       const room = rooms[currentRoom];
+      // 未完の試合は記録ごと破棄する（latestReplay は更新しない）
+      room.rec = null;
       stopItemTimer(room);
       if (room.finalCountdownTimer) clearTimeout(room.finalCountdownTimer);
       io.to(currentRoom).emit('opponentLeft');
