@@ -59,6 +59,12 @@ body{font-family:'Segoe UI','Hiragino Sans',sans-serif;background:#1a1a2e;color:
 .btn-next:hover{transform:translateY(-2px);box-shadow:0 5px 20px rgba(245,166,35,.4);}
 .btn-back{background:rgba(255,255,255,.1);color:#aaa;padding:.6rem 1.5rem;border:1px solid rgba(255,255,255,.2);border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s;position:absolute;top:2rem;left:2rem;}
 .btn-back:hover{background:rgba(255,255,255,.2);color:#fff;transform:translateX(-2px);}
+/* デモモード切り替えボタン（画面右上）。ホストにだけ表示する */
+.btn-mode-switch{background:rgba(255,255,255,.06);color:#e8e8f0;padding:.7rem 1.4rem;border:1px solid rgba(255,255,255,.3);border-radius:10px;font-size:1.15rem;font-weight:600;cursor:pointer;transition:all .2s;position:absolute;top:2rem;right:2rem;display:none;}
+.btn-mode-switch:hover{background:rgba(255,255,255,.18);color:#fff;transform:translateX(2px);}
+/* Stage D はデモモードのときだけ出す */
+.stage-card[data-demo-only]{display:none;}
+body.demo-mode .stage-card[data-demo-only]{display:flex;}
 /* Item frequency slider */
 .item-freq-box{background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.25);border-radius:12px;padding:1.2rem 1.5rem;margin-top:1rem;max-width:500px;text-align:center;}
 .item-freq-box h4{color:#f5a623;margin-bottom:.8rem;font-size:1rem;}
@@ -218,6 +224,73 @@ body{font-family:'Segoe UI','Hiragino Sans',sans-serif;background:#1a1a2e;color:
 .result-buttons.show{opacity:1;}
 .btn-restart{background:linear-gradient(135deg,#f5a623,#e09000);color:#fff;}
 .btn-exit{background:linear-gradient(135deg,#666,#444);color:#fff;}
+
+/* ============================================================
+   REPLAY VIEW (body.replay-mode)
+   ============================================================ */
+.score-bar, .replay-hud { display:none; }
+
+body.replay-mode .score-bar{
+  display:block; position:fixed; left:2vw; right:2vw; bottom:10px; height:26px;
+  border-radius:13px; overflow:hidden; background:var(--p2-color,#64E5FF);
+  box-shadow:0 0 0 2px rgba(0,0,0,.35); z-index:40;
+}
+body.replay-mode .score-bar-left{
+  height:100%; width:50%; background:var(--p1-color,#FF7376); transition:width .25s ease;
+}
+body.replay-mode .score-bar-center{
+  position:absolute; top:0; bottom:0; left:50%; width:4px; margin-left:-2px; background:#000;
+}
+
+body.replay-mode .replay-hud{
+  display:flex; position:fixed; top:10px; right:14px; align-items:center; gap:10px;
+  font-size:.8rem; font-weight:800; letter-spacing:.1em; color:#f5a623; z-index:40;
+}
+.replay-mute{
+  background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.25); color:#fff;
+  border-radius:8px; padding:.25rem .5rem; font-size:1rem; cursor:pointer; line-height:1;
+}
+
+/* 対戦中は隠していた得点と被弾数をリプレイでは常時表示する */
+body.replay-mode #gameScreen .panel-score,
+body.replay-mode #gameScreen .panel-bombs{ visibility:visible; }
+body.replay-mode .player-panel .panel-score{ font-size:3.4rem; }
+body.replay-mode .panel-bombs{ font-size:1.8rem; font-weight:900; }
+body.replay-mode .me-label{ display:none; }
+body.replay-mode .me-panel{ border-color:transparent; }
+body.replay-mode #mineBoard{ pointer-events:none; }
+/* 得点バーの分だけゲーム画面を縮め、盤面に被らないようにする */
+body.replay-mode #gameScreen{ height:calc(100vh - 46px); }
+body.replay-mode .player-panel{ height:100%; }
+body.replay-mode #btnRestart, body.replay-mode #btnExit, body.replay-mode #btnReplay{ display:none; }
+
+/* 両プレイヤーの旗。誰の旗かひと目で分かるようセル全体をその色で塗る */
+body.replay-mode #mineBoard td.flag-p1{ background:var(--p1-color) !important; }
+body.replay-mode #mineBoard td.flag-p2{ background:var(--p2-color) !important; }
+/* 同じマスに両者が旗を立てた場合は左右で塗り分ける */
+body.replay-mode #mineBoard td.flag-p1.flag-p2{
+  background:linear-gradient(90deg, var(--p1-color) 0 50%, var(--p2-color) 50% 100%) !important;
+}
+body.replay-mode #mineBoard td.flag-p1,
+body.replay-mode #mineBoard td.flag-p2{
+  box-shadow:inset 0 0 0 2px rgba(0,0,0,.55);   /* 公開済みマスと区別する枠 */
+}
+/* 旗そのものは ::after / ::before に分け、重なっても両方見えるようにする */
+body.replay-mode #mineBoard td.flag-p1::after,
+body.replay-mode #mineBoard td.flag-p2::before{
+  content:'🚩'; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  font-size:.7em; filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 2px #fff);
+}
+body.replay-mode #mineBoard td.flag-p1.flag-p2::after { left:30%; }
+body.replay-mode #mineBoard td.flag-p1.flag-p2::before{ left:70%; }
+
+/* 再生開始オーバーレイ（自動再生ポリシー対策の1クリック） */
+.replay-start-overlay{
+  display:none; position:fixed; inset:0; background:rgba(10,10,25,.92); z-index:300;
+  align-items:center; justify-content:center; text-align:center;
+}
+.replay-start-title{ font-size:3rem; font-weight:900; color:#f5a623; letter-spacing:.2em; margin-bottom:1rem; }
+.replay-start-msg{ font-size:1.1rem; color:#ddd; }
 </style>
 </head>
 <body>
@@ -242,6 +315,7 @@ body{font-family:'Segoe UI','Hiragino Sans',sans-serif;background:#1a1a2e;color:
 <!-- RULE SELECT -->
 <div id="ruleSelectScreen" class="screen">
   <button class="btn-back" id="btnBackToMatching">← Back</button>
+  <button class="btn-mode-switch" id="btnToDemo">→Demo</button>
   <div class="select-title">Select Rule</div>
   <div class="select-subtitle">Choose a game mode</div>
   <div id="hostBadgeRule"></div>
@@ -255,6 +329,7 @@ body{font-family:'Segoe UI','Hiragino Sans',sans-serif;background:#1a1a2e;color:
 <!-- STAGE SELECT -->
 <div id="stageSelectScreen" class="screen">
   <button class="btn-back" id="btnBackToRule">← Back</button>
+  <button class="btn-mode-switch" id="btnToSpecial">→special</button>
   <div class="select-title">Select Stage</div>
   <div class="select-subtitle" id="stageSubtitle">Choose a board size</div>
   <div id="hostBadgeStage"></div>
@@ -262,6 +337,7 @@ body{font-family:'Segoe UI','Hiragino Sans',sans-serif;background:#1a1a2e;color:
     <div class="stage-card" data-stage="A"><h3>Stage A</h3><p>30 x 30<br>Bombs: 150<br><small>Large &amp; intense</small></p></div>
     <div class="stage-card" data-stage="B"><h3>Stage B</h3><p>25 x 25<br>Bombs: 100<br><small>Balanced</small></p></div>
     <div class="stage-card" data-stage="C"><h3>Stage C</h3><p>20 x 20<br>Bombs: 60<br><small>Quick match</small></p></div>
+    <div class="stage-card" data-stage="D" data-demo-only="1"><h3>Stage D</h3><p>15 x 15<br>Bombs: 34<br><small>Demo</small></p></div>
   </div>
   <div class="item-freq-box" id="itemFreqBox" style="display:none">
     <h4>⏱ Item Frequency</h4>
@@ -314,6 +390,14 @@ body{font-family:'Segoe UI','Hiragino Sans',sans-serif;background:#1a1a2e;color:
       </div>
     </div>
   </div>
+  <div class="score-bar" id="scoreBar">
+    <div class="score-bar-left" id="scoreBarLeft"></div>
+    <div class="score-bar-center"></div>
+  </div>
+  <div class="replay-hud" id="replayHud">
+    <span id="replayMeta">REPLAY</span>
+    <button class="replay-mute" id="btnMute">🔊</button>
+  </div>
   <div class="player-panel" id="panelRight">
     <div class="panel-char" id="rightChar"></div>
     <div class="panel-name" id="rightName">Player 2</div>
@@ -341,11 +425,13 @@ body{font-family:'Segoe UI','Hiragino Sans',sans-serif;background:#1a1a2e;color:
   <div class="result-title-anim" id="resultTitle"></div>
   <div class="result-buttons" id="resultButtons">
     <button class="btn btn-restart" id="btnRestart">Play Again</button>
+    <button class="btn btn-replay" id="btnReplay">リプレイを見る</button>
     <button class="btn btn-exit" id="btnExit">Exit</button>
   </div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="/replay.js"></script>
 <script>
 // ============================================================
 // CHARACTERS
@@ -373,7 +459,9 @@ const ITEM_DESCS = { mine_detector:'Detect mine or dig 1 cell', barrier:'5x5 exc
 // ============================================================
 // GLOBALS
 // ============================================================
-const socket = io({ reconnection:true, reconnectionAttempts:10, reconnectionDelay:1000 });
+// リプレイ表示のときは io() の代わりに録画を流し込む偽ソケットを使う
+const REPLAY = (window.REPLAY && window.REPLAY.active) ? window.REPLAY : null;
+const socket = REPLAY ? REPLAY.socket : io({ reconnection:true, reconnectionAttempts:10, reconnectionDelay:1000 });
 socket.on('connect_error', () => console.log('Connection error, retrying...'));
 socket.on('disconnect', (reason) => { if (reason === 'io server disconnect') socket.connect(); });
 
@@ -384,6 +472,10 @@ let penaltyTimer = null;
 let selectedItem = null; // currently selected item type
 let myInventory = [];
 let finalCountdownInterval = null;
+let demoMode = false;   // サーバーから配信される展示用デモモード
+let resultTimers = [];   // gameEnd の演出 setTimeout。次の試合開始時に必ず止める
+function resultLater(fn, ms) { resultTimers.push(setTimeout(fn, ms)); }
+function clearResultTimers() { resultTimers.forEach(clearTimeout); resultTimers = []; }
 
 // ============================================================
 // AUDIO
@@ -404,7 +496,7 @@ const AUDIO = (() => {
     tick:   { src: 'se/countdown_tick.mp3', vol: 1.0, pool: 2 }, // 5,4,3,2,1
     start:  { src: 'se/game_start.mp3',     vol: 1.0, pool: 1 }, // ゲーム開始
     dig:    { src: 'se/dig.mp3',            vol: 1.0, pool: 6 }, // 自分がマスを開いた
-    digBig: { src: 'se/dig_large.mp3',      vol: 1.0, pool: 2 }, // 一気に開いた（CASCADE_SE_THRESHOLD 以上）
+    digBig: { src: 'se/dig_large.mp3',      vol: 1.0, pool: 2 }, // 一気に開いた（cascadeSeThreshold 以上）
     boom1:  { src: 'se/explosion_1.mp3',    vol: 0.5, pool: 2 }, // 地雷（音割れ防止のため控えめ）
     boom2:  { src: 'se/explosion_2.mp3',    vol: 0.5, pool: 2 }, // 地雷（音割れ防止のため控えめ）
     victory:{ src: 'se/victory.mp3',        vol: 1.0, pool: 1 }, // Victory 表示の瞬間
@@ -431,6 +523,10 @@ const AUDIO = (() => {
     sfx[key] = { pool, next: 0 };
   }
 
+  // ミュート状態。新規再生時も必ずこの値を適用しないと、鳴り始めた音が勝手に解除されてしまう
+  let muted = false;
+  function applyMute(el) { el.muted = muted; }
+
   function allElements() {
     const list = Object.values(bgm);
     for (const s of Object.values(sfx)) list.push(...s.pool);
@@ -445,7 +541,7 @@ const AUDIO = (() => {
       el.muted = true;
       const restore = () => {
         if (!el._wantPlay) { el.pause(); el.currentTime = 0; }
-        el.muted = false;
+        applyMute(el);
       };
       const p = el.play();
       if (p && p.then) p.then(restore, restore); else restore();
@@ -464,7 +560,7 @@ const AUDIO = (() => {
       prime();
       if (currentBgm && bgm[currentBgm]) {
         const el = bgm[currentBgm];
-        el.muted = false;
+        applyMute(el);
         el.play().catch(() => {});
       }
     };
@@ -498,7 +594,7 @@ const AUDIO = (() => {
     if (!el) return;
     currentBgm = key;
     el._wantPlay = true;
-    el.muted = false;
+    applyMute(el);
     el.volume = el._baseVol;
     el.currentTime = 0;
     const p = el.play();
@@ -523,7 +619,7 @@ const AUDIO = (() => {
     if (!s) return null;
     const el = s.pool[s.next];
     s.next = (s.next + 1) % s.pool.length;
-    el.muted = false;
+    applyMute(el);
     el.currentTime = 0;
     el.play().catch(() => {});
     return el;
@@ -552,14 +648,20 @@ const AUDIO = (() => {
   function bgmState() {
     const el = currentBgm && bgm[currentBgm];
     if (!el) return { key: null };
-    return { key: currentBgm, volume: el.volume, currentTime: el.currentTime, paused: el.paused };
+    return { key: currentBgm, volume: el.volume, currentTime: el.currentTime, paused: el.paused, muted: el.muted };
   }
 
-  return { prime, play, playRandom, playThen, playBgm, stopBgm, currentBgmKey, bgmState };
+  // リプレイ画面のミュート切り替え用。以降に鳴り始める音（勝敗SE・リザルトBGM）にも効く
+  function setMuted(on) { muted = !!on; allElements().forEach(applyMute); }
+
+  return { prime, play, playRandom, playThen, playBgm, stopBgm, setMuted, currentBgmKey, bgmState };
 })();
 
-// 一度にこのマス数以上開いたら dig ではなく digBig を鳴らす
-const CASCADE_SE_THRESHOLD = 10;
+// 全マスのこの割合以上を一度に開いたら dig ではなく digBig を鳴らす。
+// 盤面サイズによらず「一気に開いた感」が同じになるよう、固定マス数ではなく比率で判定する。
+//   Stage A 900マス -> 23 / B 625 -> 16 / C 400 -> 10 / D 225 -> 6
+const CASCADE_SE_RATIO = 0.025;
+let cascadeSeThreshold = 10;   // countdownStart で盤面サイズから算出する
 
 // 地雷を踏んだときの行動不能時間（server.js の penalties と揃えること）
 const PENALTY_SECONDS = 5;
@@ -610,6 +712,16 @@ socket.on('error', ({ message }) => { document.getElementById('errorMsg').textCo
 socket.on('notHost', () => {}); // handled by UI disabling
 
 // ============================================================
+// DEMO MODE
+// ============================================================
+socket.on('demoMode', ({ on }) => {
+  demoMode = on;
+  document.body.classList.toggle('demo-mode', on);
+});
+document.getElementById('btnToDemo').addEventListener('click', () => { socket.emit('toggleDemo'); });
+document.getElementById('btnToSpecial').addEventListener('click', () => { socket.emit('toggleDemo'); });
+
+// ============================================================
 // BACK BUTTONS
 // ============================================================
 document.getElementById('btnBackToMatching').addEventListener('click', () => {
@@ -628,6 +740,7 @@ document.getElementById('btnBackToStage').addEventListener('click', () => {
 socket.on('goToRuleSelect', ({ players, host }) => {
   AUDIO.playBgm('menu'); // 初参加時と Play Again 時の両方をここで拾う
   showScreen('ruleSelectScreen');
+  document.getElementById('btnToDemo').style.display = (myPlayerId === host) ? 'block' : 'none';
   const badge = document.getElementById('hostBadgeRule');
   if (myPlayerId === host) {
     badge.innerHTML = '<span class="host-badge">👑 You are the Host</span>';
@@ -653,6 +766,7 @@ socket.on('goToStageSelect', ({ rule, host }) => {
   AUDIO.playBgm('menu'); // Ready 後に戻ってきた場合の復帰用（既に鳴っていれば何もしない）
   showScreen('stageSelectScreen');
   currentRule = rule;
+  document.getElementById('btnToSpecial').style.display = (demoMode && myPlayerId === host) ? 'block' : 'none';
   const badge = document.getElementById('hostBadgeStage');
   if (myPlayerId === host) {
     badge.innerHTML = '<span class="host-badge">👑 You are the Host</span>';
@@ -765,8 +879,10 @@ socket.on('playerReady', () => {});
 let playersInfo = [];
 
 socket.on('countdownStart', ({ duration, players, rows, cols, rule, stage }) => {
+  clearResultTimers();   // 前の試合／前のループの結果演出を確実に止める
   playersInfo = players;
   currentRows = rows; currentCols = cols; currentRule = rule;
+  cascadeSeThreshold = Math.ceil(rows * cols * CASCADE_SE_RATIO);
   showScreen('gameScreen');
   setupPlayerPanels(players);
   buildBoard(rows, cols);
@@ -774,7 +890,7 @@ socket.on('countdownStart', ({ duration, players, rows, cols, rule, stage }) => 
 
   // Show game mode label
   const ruleLabels = { standard:'Standard', itemChaos:'Item Chaos', deathmatch:'Deathmatch' };
-  const stageLabels = { A:'Stage A (30×30)', B:'Stage B (25×25)', C:'Stage C (20×20)' };
+  const stageLabels = { A:'Stage A (30×30)', B:'Stage B (25×25)', C:'Stage C (20×20)', D:'Stage D (15×15)' };
   document.getElementById('gameModeLabel').textContent = `${ruleLabels[rule] || ''} — ${stageLabels[stage] || ''}`;
 
   // Show item inventory for item chaos (both sides)
@@ -838,12 +954,14 @@ function buildBoard(rows, cols) {
       td.style.fontSize = fontSize + 'px'; td.style.lineHeight = cellSize + 'px';
 
       td.addEventListener('click', () => {
+        if (REPLAY) return;   // リプレイは観戦専用
         if (gameState !== 'playing') return;
         if (selectedItem) { useItemOnCell(r, c); return; }
         socket.emit('dig', { row: r, col: c });
       });
       td.addEventListener('contextmenu', e => {
         e.preventDefault();
+        if (REPLAY) return;
         if (gameState !== 'playing') return;
         if (selectedItem) { deselectItem(); return; }
         socket.emit('flag', { row: r, col: c });
@@ -888,6 +1006,10 @@ function setupPlayerPanels(players) {
   document.getElementById('rightScore').style.color = oppChar.primary;
   document.getElementById('rightBombs').textContent = '0';
   document.getElementById('rightPenalty').style.display = 'none';
+
+  // 得点バーと旗の色分けに使う（left パネルが必ず myPlayerId 側）
+  document.body.style.setProperty('--p1-color', (myPlayerId === 'p1' ? myChar : oppChar).primary);
+  document.body.style.setProperty('--p2-color', (myPlayerId === 'p1' ? oppChar : myChar).primary);
 }
 
 // ============================================================
@@ -896,7 +1018,7 @@ function setupPlayerPanels(players) {
 socket.on('cellsRevealed', ({ cells, playerId: pid, scores }) => {
   // 自分が開いた音だけ鳴らす（連鎖で複数マス開いても1回。一気に開いたら専用の音）
   if (pid === myPlayerId && cells.length > 0) {
-    AUDIO.play(cells.length >= CASCADE_SE_THRESHOLD ? 'digBig' : 'dig');
+    AUDIO.play(cells.length >= cascadeSeThreshold ? 'digBig' : 'dig');
   }
   const colorKey = scores.find(s => s.id === pid)?.color;
   const tintClass = colorKey ? CHARACTERS[colorKey].tintClass : '';
@@ -910,7 +1032,7 @@ socket.on('cellsRevealed', ({ cells, playerId: pid, scores }) => {
   updateScores(scores);
 });
 
-socket.on('bombHit', ({ row, col, playerId: pid, penaltyUntil, scores, deathmatch }) => {
+socket.on('bombHit', ({ row, col, playerId: pid, scores, deathmatch }) => {
   AUDIO.playRandom(['boom1', 'boom2']); // 自分・相手どちらの被弾でも鳴らす
   const td = getTd(row, col);
   if (td) {
@@ -922,19 +1044,30 @@ socket.on('bombHit', ({ row, col, playerId: pid, penaltyUntil, scores, deathmatc
   }
   updateScores(scores);
   if (!deathmatch) {
-    if (pid === myPlayerId) showMyPenalty(penaltyUntil);
+    if (REPLAY) showPanelPenalty(pid);          // 観戦視点: 盤面を隠さない
+    else if (pid === myPlayerId) showMyPenalty();
     else showOpponentPenalty();
   }
 });
 
-function showMyPenalty(until) {
+// リプレイ用: 被弾した側のパネルにだけ PENALTY バッジを出す
+function showPanelPenalty(pid) {
+  const badge = document.getElementById(pid === 'p1' ? 'leftPenalty' : 'rightPenalty');
+  badge.style.display = 'block';
+  setTimeout(() => { badge.style.display = 'none'; }, 5000);
+}
+
+function showMyPenalty() {
   const overlay = document.getElementById('myPenaltyOverlay');
   const timerEl = document.getElementById('penaltyCountdown');
   overlay.classList.add('active');
   if (penaltyTimer) clearInterval(penaltyTimer);
+  // サーバーが送る絶対時刻ではなく、受信した瞬間からの経過で数える。
+  // 別PC同士だと端末間の時計ズレがそのまま表示時間に乗ってしまい、
+  // 実際のロック（サーバー側でちょうど5秒）より長く操作不能に見えるため。
+  const endAt = Date.now() + PENALTY_SECONDS * 1000;
   function upd() {
-    // サーバー時刻とのわずかなズレで 6 から始まらないよう、ペナルティ秒数で頭打ちにする
-    const rem = Math.min(PENALTY_SECONDS, Math.max(0, Math.ceil((until - Date.now()) / 1000)));
+    const rem = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
     timerEl.textContent = rem;
     if (rem <= 0) { clearInterval(penaltyTimer); overlay.classList.remove('active'); }
   }
@@ -947,10 +1080,11 @@ function showOpponentPenalty() {
   setTimeout(() => { badge.style.display = 'none'; }, 5000);
 }
 
-socket.on('flagUpdate', ({ row, col, flagged }) => {
+socket.on('flagUpdate', ({ row, col, flagged, owner }) => {
   const td = getTd(row, col);
   if (!td) return;
-  td.classList.toggle('flagged', flagged);
+  // owner はリプレイ時のみ付く。通常プレイは自分の旗しか届かないので従来どおり。
+  td.classList.toggle(owner ? `flag-${owner}` : 'flagged', flagged);
 });
 
 socket.on('penalized', () => {});
@@ -960,6 +1094,22 @@ function updateScores(scores) {
   const opp = scores.find(s => s.id !== myPlayerId);
   if (me) { document.getElementById('leftScore').textContent = me.cells; document.getElementById('leftBombs').textContent = me.bombs; }
   if (opp) { document.getElementById('rightScore').textContent = opp.cells; document.getElementById('rightBombs').textContent = opp.bombs; }
+  if (REPLAY) updateScoreBar(scores);
+}
+
+// 得点バー: 左=p1 / 右=p2 を、地雷ペナルティ込みの得点比で塗り分ける
+function updateScoreBar(scores) {
+  const p1 = scores.find(s => s.id === 'p1'), p2 = scores.find(s => s.id === 'p2');
+  if (!p1 || !p2) return;
+  const pen = (currentRule === 'deathmatch') ? 0 : 10;   // server.js の bombPenalty と対応
+  const s1 = p1.cells - p1.bombs * pen;
+  const s2 = p2.cells - p2.bombs * pen;
+  // ペナルティで得点は負になりうる。低い方（か0）を基準に平行移動してから比を取ることで、
+  // 両者マイナスでも「どちらが勝っているか」が保たれる。両者とも正なら素直な得点比になる。
+  const lo = Math.min(s1, s2, 0);
+  const a = s1 - lo, b = s2 - lo;
+  const total = a + b;
+  document.getElementById('scoreBarLeft').style.width = (total > 0 ? (a / total) * 100 : 50) + '%';
 }
 
 // ============================================================
@@ -1094,10 +1244,10 @@ socket.on('yellowFlagsPlaced', ({ flags }) => {
   });
 });
 
-socket.on('flagsStolen', ({ flags }) => {
+socket.on('flagsStolen', ({ flags, owner }) => {
   flags.forEach(({ row, col }) => {
     const td = getTd(row, col);
-    if (td) td.classList.remove('flagged');
+    if (td) td.classList.remove(owner ? `flag-${owner}` : 'flagged');
   });
   // Show notification
   const notif = document.getElementById('stolenNotification');
@@ -1164,18 +1314,18 @@ socket.on('gameEnd', ({ results, winner, rule, deathBy, timeline, gameDuration }
   animateGraph(timeline || [], gameDuration || 1, me, opp);
 
   // 2) After graph: reveal cells
-  setTimeout(() => revealCells(me, opp, meCh, oppCh), 5500);
+  resultLater(() => revealCells(me, opp, meCh, oppCh), 5500);
 
   // 3) Bombs / Death
   if (rule === 'deathmatch') {
-    setTimeout(() => revealDeath(me, opp, meCh, oppCh, deathBy), 7200);
-    setTimeout(() => revealWinner(winner, rule), 8800);
-    setTimeout(() => showButtons(), 9500);
+    resultLater(() => revealDeath(me, opp, meCh, oppCh, deathBy), 7200);
+    resultLater(() => revealWinner(winner, rule), 8800);
+    resultLater(() => showButtons(), 9500);
   } else {
-    setTimeout(() => revealBombs(me, opp, meCh, oppCh), 7200);
-    setTimeout(() => revealFinal(me, opp, meCh, oppCh), 8800);
-    setTimeout(() => revealWinner(winner, rule), 10400);
-    setTimeout(() => showButtons(), 11100);
+    resultLater(() => revealBombs(me, opp, meCh, oppCh), 7200);
+    resultLater(() => revealFinal(me, opp, meCh, oppCh), 8800);
+    resultLater(() => revealWinner(winner, rule), 10400);
+    resultLater(() => showButtons(), 11100);
   }
 });
 
@@ -1402,6 +1552,14 @@ function countUp(el, target, duration, prefix, isNeg) {
 }
 
 document.getElementById('btnRestart').addEventListener('click', () => { socket.emit('requestRestart'); });
+document.getElementById('btnReplay').addEventListener('click', () => { window.open('/replay', '_blank'); });
+
+let replayMuted = false;
+document.getElementById('btnMute').addEventListener('click', () => {
+  replayMuted = !replayMuted;
+  AUDIO.setMuted(replayMuted);
+  document.getElementById('btnMute').textContent = replayMuted ? '🔇' : '🔊';
+});
 document.getElementById('btnExit').addEventListener('click', () => {
   socket.emit('leaveRoom');
   showScreen('matchingScreen');
@@ -1431,10 +1589,18 @@ function resetMatchingScreen() {
 
 document.addEventListener('contextmenu', e => e.preventDefault());
 
-// ページを開いた瞬間からメニューBGMを鳴らす
-// （ブラウザに自動再生を拒否された場合は、最初のクリック／キー入力で自動的に鳴り出す）
-AUDIO.playBgm('menu');
-AUDIO.prime();
+if (REPLAY) {
+  // 観戦ビュー: 左パネル = p1 に固定し、replay.js から AUDIO を触れるようにする
+  document.body.classList.add('replay-mode');
+  myPlayerId = 'p1';
+  window.AUDIO = AUDIO;
+  REPLAY.start();
+} else {
+  // ページを開いた瞬間からメニューBGMを鳴らす
+  // （ブラウザに自動再生を拒否された場合は、最初のクリック／キー入力で自動的に鳴り出す）
+  AUDIO.playBgm('menu');
+  AUDIO.prime();
+}
 </script>
 </body>
 </html>
